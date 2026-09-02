@@ -1,455 +1,1718 @@
-# Omarchy Silicon product integration design (P-01–P-05)
+# Omarchy Silicon product integration design (P-01-P-05)
 
-Status: DESIGN CONTRACT ONLY, correction round 2. This file is non-implementation, non-support, and non-release material. It changes no production code, schemas, bindings, fixtures, CI, qualification record, boot artifact, branch protection, or platform behavior. No slice or program is DONE, and no compatibility or Apple Silicon support claim is made here.
+Status: DESIGN CONTRACT ONLY, final bounded correction round 3. This file is non-implementation, non-compatibility, non-support, non-qualification, and non-release material. It changes no production code, schema, binding, fixture, CI workflow, boot artifact, installer behavior, branch protection, or platform behavior. The product routes in live `quattro` remain unimplemented and unsafe relative to this contract.
 
-Identity: pre-correction tip `19b493c6c1688ec6c7a3c0d27d48144aa02cb369`, its parent `a505588c630c1266ee41767b054d5b3d60b3e8f7`, base branch `quattro`, and PR #1 kept OPEN/DRAFT. The frozen program baseline is the coordinator-pinned `PROGRAM.md` commit `58302d148f0e8b855578f9aa518ff1c5eb48c515`; this document does not silently consume a later baseline.
+Identity: correction parent `6238643fe35746bb341738b065a4c19e5a4e5495`; its parent `19b493c6c1688ec6c7a3c0d27d48144aa02cb369`; PR #1 repository `omarchy-silicon/omarchy-mac`; base branch `quattro`; handed-off base commit `95ffbc41a6d5d5356c217e503b51f3f7c3bd80f1`; head branch `factory/design-product-integration`. The program authority is consumed only by its externally supplied exact commit `58302d148f0e8b855578f9aa518ff1c5eb48c515`. F-02, F-03, F-06, F-07, and physical qualification remain gating dependencies.
 
-The `m1n1-omarchy` boundary is opaque and human-produced. This lane does not inspect, read, list, traverse, fetch, clone, characterize, edit, test, or use any artifact behind that boundary. Any required external boot evidence enters only as an externally supplied signed hash or metadata envelope, treated as an opaque input.
+The `m1n1-omarchy` repository and every m1n1 path are an absolute opaque human-produced boundary. This document does not inspect, read, list, traverse, fetch, clone, browse, test, edit, characterize, or delegate work in that boundary. Any outside boot evidence can enter this contract only as an externally supplied signed hash or metadata envelope treated as an opaque value.
 
-## 1. Scope and design acceptance
+## 1. Contract boundary and non-claims
 
-The product side owns the command and app adapters, admission orchestration, typed user outcomes, local evidence linkage, diagnostics projection, and parity evidence. The platform side owns the authenticated registry and payloads, authority and policy, generated bindings, qualification, release assembly, boot evidence, and stable promotion. The installer/recovery side owns the irreversible system, package, configuration, APFS, slot, and rollback executor. This separation is a contract boundary, not an implementation claim.
+The product side owns adapters, typed admission, user outcomes, evidence projection, diagnostics projection, and parity census. The platform side owns authenticated payloads, schema locks, trust and authority, generated bindings, candidate assembly, qualification records, boot evidence, and stable promotion. I-03 owns read-only inventory, target identity, exact plan generation, and final consent. I-04 owns the irreversible executor, durable journal, idempotent resume, rollback, and safe return. F-06 owns compliance intake. F-07 is the sole stable-channel promotion writer. These are ownership statements for a future implementation boundary, not evidence that any owner has delivered it.
 
-The design is acceptable only when the following are independently demonstrated at an immutable commit and the relevant gate is green: a ratified dependency receipt for every consumed upstream contract; one generated verifier and one `Trusted<T>` constructor boundary; a closed admission input/output schema; all eight payloads mapped to source, validator, binding, consumer, freshness, and rejection; qualification bound into admission identity; the `Trusted<BootContext>` and `VerifiedClock` boot handoff; a typed I-03/I-04 transaction; the closed route and call-graph manifest; typed F-06/F-07 evidence intake; total recovery; privacy and accessibility outcomes; hostile fixtures and product CI; physical qualification; and branch protection.
+The design contract is complete only when every field, code, path, phase, state, transition, preimage, route node, fixture, handoff, residual, owner, due gate, and acceptance artifact below is implemented and independently verified at immutable commits. A document, branch, opened pull request, green syntax check, successful desktop boot, architecture string, or coordinator intent is not implementation, compatibility, qualification, or release evidence.
 
-The document-level invariants are exact and checked mechanically: payload types = 8, dependency holds = 4, route entries = 25, recovery states = 11, hostile fixtures = 21, implementation residuals = 11, and baseline failure records = 3. Missing executables or evidence remain `NOT IMPLEMENTED` or `NOT PRESENT`; they are never counted as a pass.
+The only allowed current status values are `DESIGN_ONLY`, `HELD`, `NOT_IMPLEMENTED`, `NOT_PRESENT`, `TOOLING_BLOCK`, and `UNSAFE_BASELINE`. No such value is a pass or a DONE signal. A future implementation must fail closed when any required artifact is absent.
 
-## 2. Authority holds and one trust seam
+The mechanically recomputed census for this document is `PAY=8`, `HOLD=4`, `ROUTE-FAMILY=25`, `STATE=13`, `TRANSITION=44`, `FIXTURE-FAMILY=33`, `FIX-27-SUBCASE=9`, `MATERIALIZED-FIXTURE-CASE=42`, `HANDOFF=4`, `RESULT=10`, `ERROR=64`, `RESIDUAL=15`, and `MARKDOWN-TABLE=13`. These are definition-row counts, not implementation or qualification evidence. The current base census is `SOURCE-NODES=563`, `RELEVANT-ROUTE-MUTATOR-PATHS=123`, and `MENU-ACTION-KEYS=270`; their exact derivations and digests are in section 8.
 
-### 2.1 Dependency HOLDs
+## 2. Exact upstream authority and dependency holds
 
-The product does not treat rejected, frozen, unstarted, or unratified upstream prose as local authority. F-02 candidate vocabulary is not a product schema; F-03 policy names are not a product trust table; F-06 and F-07 intake names are not promotion artifacts until their owners ratify them. The eight payload identifiers below are the frozen program set only, and their final field grammar is consumed through the future ratified generated binding.
+The exact externally supplied F-02 candidate vocabulary below is the required contract shape, but F-02 is currently rejected/frozen and not ratified for consumption. The F-03 trust policy, F-06 compliance intake, and F-07 promotion intake are also unratified. Product code must not consume a candidate blob, local alias, handwritten mapping, stale generated output, or prose section as authority.
 
-| Hold ID | Dependency and current status | Owner | Consumer | Due before | Effect while held |
+| Hold ID | Dependency and supplied identity | Owner | Consumers | Due before | Hold result |
 | --- | --- | --- | --- | --- | --- |
-| `HOLD-01` | F-02 platform schema and generated binding: rejected/frozen candidate `c315c7e79928d0041deb582bed79a61074361b21` is non-consumable | F-02 owner and coordinator | P-01, P-02, P-04, P-05, I-03, I-04 | any product binding, fixture, or admission implementation | `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, process status 4, decision `hold`, no handle, no mutation |
-| `HOLD-02` | F-03 trust context, authority policy, key custody, and role binding are unstarted | F-03 owner and coordinator | admission, executor handoff, diagnostics projection | any trust or policy verification | `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, process status 4, decision `hold`, no handle, no mutation |
-| `HOLD-03` | F-06 compliance intake contract is unratified | F-06 owner and coordinator | F-07 promotion terminal | any compliance intake or parity acceptance | `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, process status 4, decision `hold`, no handle, no promotion input |
-| `HOLD-04` | F-07 promotion-evidence intake contract is unratified; F-07 remains the sole stable-channel writer | F-07 owner and coordinator | F-07 promotion terminal | any candidate promotion request | `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, process status 4, decision `hold`, no handle, no product promotion |
+| `HOLD-01` | F-02 schema and generated binding; candidate comparison blob `c315c7e79928d0041deb582bed79a61074361b21` is non-consumable until ratification | F-02 owner and coordinator | P-01, P-02, P-04, P-05, I-03, I-04 | any schema, binding, fixture, or admission implementation | `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, status 4, decision `hold`, no handle, no mutation |
+| `HOLD-02` | F-03 trust context, authority role binding, key custody, expiry, rotation, revocation, and offline recovery are unstarted | F-03 owner and coordinator | P-01 through P-05, I-03, I-04, diagnostics | any trust, owner, policy, or role verification | `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, status 4, decision `hold`, no handle, no mutation |
+| `HOLD-03` | F-06 compliance intake and policy result are unratified | F-06 owner and coordinator | F-07 | any compliance or parity acceptance | `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, status 4, decision `hold`, no promotion input |
+| `HOLD-04` | F-07 promotion-evidence intake is unratified; F-07 remains the sole stable writer | F-07 owner and coordinator | F-07 promotion terminal | any candidate promotion request | `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, status 4, decision `hold`, no promotion |
 
-For every dependency, missing, mismatched, stale, unratified, or unverifiable evidence has exactly one terminal result: `decision=hold`, `code=DEPENDENCY_UNRATIFIED`, `path=dependency.check`, `phase=dependency`, `process_status=4`, `handle` absent, and `mutation=false`. A diagnostic cause may identify the hold ID, but it cannot change the code, path, phase, result, or process status. There is no warning, skip, local substitute, or partial authority path.
+### 2.1 Ratification receipt
 
-### 2.2 Required future ratification evidence
+One immutable receipt is required per consumed dependency. It must contain exactly the following fields; a URL, branch, mutable ref, section citation, local copy, or approval message without these fields does not clear a hold.
 
-The hold clears only when the owner supplies one immutable ratification receipt that contains every field below for the exact consumed dependency. A URL, branch name, section reference, local copy, or prose approval without these fields is not evidence.
-
-| Evidence field | Required value and verification |
-| --- | --- |
-| `canonical_commit_id` | Full immutable commit ID for the canonical source, resolved by the coordinator and not a branch or mutable ref |
-| `artifact_id` | Exact immutable artifact/document identifier for the consumed contract or generated output |
-| `artifact_content_digest` | SHA-256 of the exact canonical artifact bytes, with the preimage and encoding recorded in the receipt |
-| `schema_set_digest` | Exact digest of the complete schema set used by the producer and consumer, compared byte-for-byte |
-| `generated_output_lock_digest` | Exact digest of the generator lock and generated output lock, including generator, parser, interpreter, and dependency versions |
-| `authority_version` | Version of the authority and key-custody policy that was approved for this artifact |
-| `policy_version` | Version of the consumer and admission policy that was approved for this artifact |
-| `generated_binding_identity` | Binding ID, binding version, source digest, generated output digest, parser ID/version, and declared consumer capability identity |
-| `conformance_receipt` | Immutable receipt ID and digest showing schema, canonicalization, signature, context, freshness, replay, negative-fixture, and consumer-binding conformance |
-| `owner_decision_log_entry` | Immutable owner decision-log entry ID and digest naming the artifact, the exception or ratification decision, reason, scope, and effective version |
-| `trusted_constructor_boundary` | Exactly one named constructor boundary, with an immutable implementation ID and digest, producing `Trusted<T>` only after strict parse, canonicalization, verification, context, freshness, and policy checks |
-| `issued_at` and `expires_at` | Verified clock values with a bounded freshness interval and no open-ended validity |
-
-The consumer compares all fields against the manifest-required binding and the locally pinned ratification receipt. Any comparison failure returns the same `DEPENDENCY_UNRATIFIED` result. The product must not hand-copy a field list or create a shadow registry to bridge a hold.
-
-### 2.3 One `Trusted<T>` constructor boundary
-
-There is exactly one future cross-repository constructor boundary: `construct_trusted<T>(canonical_input, expected_context, verified_clock, ratification_receipt) -> Trusted<T> | terminal rejection`. It is implemented by the ratified generated verifier owned by F-02/F-03; product code only receives an opaque `Trusted<T>` and cannot instantiate, deserialize, cast, unwrap, or mint one. `Trusted<BootContext>` uses the same boundary. No shell route, app route, executor, test fixture, journal record, or support bundle is an alternate constructor.
-
-The product adapter derives `expected_context` from the closed operation, scope, target identity, candidate identity, and authority context. It never accepts a caller-provided context, role, key, board identity, timestamp, digest, or trust decision. A rejected or unratified value cannot be downgraded to evidence, `not_applicable`, or a warning.
-
-## 3. The eight authenticated payloads
-
-The following table is the complete payload map. Each row names the source, validator, generated binding, producer, consumer, freshness/replay rule, and terminal rejection behavior. These are the eight frozen program payload types and not a locally extensible schema registry. While any dependency hold in 2.1 remains uncleared, its universal `DEPENDENCY_UNRATIFIED` result supersedes every row-specific parse or identity rejection.
-
-| Payload ID | Authenticated type | Source and producer | Validator | Binding | Product consumer and operation | Freshness and replay | Rejection behavior |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `PAY-01` | `board-registry/v1` | F-02 canonical bundle; platform registry publisher | one `Trusted<T>` constructor using ratified trust context | generated binding identity from the ratification receipt | `admit_board` in P-01 for `inspect`, `install`, `setup`, `update`, `recover` | immutable document ID, payload digest, schema-set digest, issued/expiry window, nonce and replay identity; no duplicate document ID | `TRUST_FAILURE` at `admission.verify`, phase `verify`, process status 3, decision `reject`, no identity or handle |
-| `PAY-02` | `platform-manifest/v1` | F-02/F-05 candidate assembly; platform release publisher | same constructor plus cross-document and candidate checks | generated manifest binding named by the ratified lock | `admit_operation` and I-04 executor for exact operation, scope, target, component, channel, health, and rollback policy | immutable candidate tuple, expiry, schema/binding lock, monotonic candidate generation, no replay across board or target | `BINDING_MISMATCH` or `TRUST_FAILURE` at `admission.verify`, phase `verify`, process status 3, no handle or staging |
-| `PAY-03` | `installer-plan/v1` | I-03 planner; read-only plan producer | constructor plus operation/scope/target and mutation-list binding | generated plan binding and plan lock digest | P-01 `open` and I-03/I-04 typed executor handoff | plan digest and target IDs cannot change after open; a replayed plan or changed mutation list is rejected | `PLAN_MISMATCH` at `admission.identity`, phase `identity`, process status 3, no handle |
-| `PAY-04` | `qualification-record/v1` | Q-00/Q-01/Q-02 qualification authority; lab evidence publisher | constructor plus exact board, candidate, manifest, test, and residual checks | generated qualification binding and qualification evidence projection | `admit_board`, P-03 census, P-05 update evidence, and F-07 intake; qualification is never produced by product code | exact board/profile and manifest binding, record expiry, test-run identity, operator receipt, no replay across candidate or board | `QUALIFICATION_NOT_BOUND` at `admission.identity`, phase `identity`, process status 3, no handle and result cannot be `qualified` |
-| `PAY-05` | `boot-health/v1` | boot-health producer after the boot backend checks the candidate | constructor plus `Trusted<BootContext>` and `VerifiedClock` comparison | generated health binding and required-check-set digest | `evaluate_boot_health` for P-05 recovery/update state; product records evidence only | source generation, slot, generation, lineage, counter, manifest tuple, required checks, issued/expiry, and replay identity must match the transaction | `BOOT_TUPLE_MISMATCH` or `HEALTH_REQUIRED_CHECK_FAILED` at `boot.evaluate`, phase `verify`, process status 3, no success result |
-| `PAY-06` | `owner-approval/v1` | owner-authorized approval service; product never creates it | constructor plus scope, operation, target, plan, topology, schema-set, authority role, expiry, and replay checks | generated approval binding and authority/policy version | `admit_operation` and I-03 final consent preflight; approval authorizes only the named transaction | one nonce and approval ID per plan/target; expiry is the earliest of approval, policy, manifest, and verified-clock limits | `OWNER_PROOF_INVALID` at `admission.identity`, phase `identity`, process status 3, no handle |
-| `PAY-07` | `boot-success-mark/v1` | boot backend after verified health; product never creates or promotes it | constructor plus `Trusted<BootContext>`, `Trusted<boot-health/v1>`, and clock comparisons | generated success-mark binding and required-check-set digest | `evaluate_boot_health` and I-04 transaction close; F-07 may consume it as evidence | source generation, slot, generation, lineage, counter, manifest, board, transaction, and required checks must equal the live context; one-time marker identity | `BOOT_TUPLE_MISMATCH` at `boot.evaluate`, phase `verify`, process status 3, no close and no promotion |
-| `PAY-08` | `dtb-mutation-envelope/v1` | platform DTB decision producer; product does not mutate DTB | constructor plus board, manifest, target, operation, policy, and mutation digest checks | generated DTB envelope binding and decision digest | `admit_operation` consumes the verified decision; I-04 consumes the envelope for the authorized DTB mutation step | exact board, target, manifest, transaction, operation, mutation list, expiry, and nonce; no envelope transplant or replay | `DTB_DECISION_MISSING` at `admission.handoff`, phase `handoff`, process status 3, no handle and no DTB action |
-
-The `dtb-mutation-envelope/v1` has one product operation: `apply-hardware` under `platform-hardware`. The product consumer verifies that the envelope is present, bound to the exact board/manifest/target/operation and included in the admission identity, then passes it opaquely to I-04. I-04 is the only consumer allowed to execute the DTB mutation primitive. Product code never reads it as authority, edits it, selects a mutation, or writes a DTB.
-
-## 4. Closed product admission contract
-
-### 4.1 `P01.AdmissionOpenInput/v2`
-
-`P01.AdmissionOpenInput/v2` is a product adapter input/output contract, not an authenticated ninth payload. It is closed: unknown top-level fields, absent required values, duplicate entries, caller-supplied semantic identities, and unbounded strings are rejected before the dependency check. Paths are only transport references to bounded files; path contents are read through the one generated verifier boundary.
-
-| Input ID | Field and exact members | Source and rule |
-| --- | --- | --- |
-| `IN-01` | `contract_id = P01.AdmissionOpenInput/v2` | adapter constant; any other value is `ADMISSION_USAGE` |
-| `IN-02` | `operation_scope = {operation, scope, route_id}` | operation and scope come from the closed tables in 4.3; route ID must be in the route manifest; no default operation or scope |
-| `IN-03` | `target = {requested_target_id, observed_target_id, target_kind, board_id, soc_id, device_tree_identity_digest, firmware_schema_id, disk_id, volume_id, slot, account_id}` | requested ID comes from the verified plan; observed ID comes from the adapter-owned source; every exact identity must compare; raw serials and device paths are not authority |
-| `IN-04` | `owner_proof_receipt = {receipt_id, issuer_id, subject_account_id, operation, scope, target_id, plan_document_id, plan_digest, issued_at, expires_at, nonce, replay_counter, authority_version, verifier_id, verification_digest}` | independently verified receipt from the owner-proof service; a signed approval alone is insufficient; receipt subject and target account must match |
-| `IN-05` | `target_account = {account_id, account_kind, uid, ownership_receipt_id, account_policy_version, issued_at, expires_at, nonce, verification_digest}` | independently verified target-account source; uid, account kind, operation, scope, and exact target are compared; no caller string grants ownership |
-| `IN-06` | `verified_clock = {clock_id, source_generation, observed_at, monotonic_counter, fresh_until, replay_nonce, verifier_digest}` | adapter-attested source only; no `--at`, environment timestamp, wall-clock-only value, or fixture argv injection |
-| `IN-07` | `payload_refs = exactly eight entries each with {payload_type, document_id, content_digest, payload_digest, schema_set_digest, binding_identity, authority_version, issued_at, expires_at, source_generation, status, not_applicable_reason}` | one entry for each `PAY-01` through `PAY-08`; `status=not_applicable` is explicit and must be authorized by the manifest; omission is invalid |
-| `IN-08` | `plan = {document_id, payload_digest, mutation_list_digest, operation, scope, target_id, plan_generation, predecessor_generation, target_generation, lineage, expected_counter, required_capability_ids}` | verified `installer-plan/v1`; exact operation/scope/target and mutation list are immutable after open |
-| `IN-09` | `qualification_provenance = {qualification_document_id, qualification_payload_digest, qualification_content_digest, board_id, profile_id, manifest_document_id, manifest_payload_digest, test_run_id, evidence_receipt_digest, status}` | independently verified `PAY-04`; one or more records are required for a platform mutation, sorted by document ID, and included in identity hashing |
-| `IN-10` | `boot_identity = {boot_health_document_id, boot_health_payload_digest, boot_success_document_id, boot_success_payload_digest, context_id, source_generation, slot, generation, lineage, counter, required_checks_digest}` | explicit `present` or `not_applicable` state according to operation; update/recovery requires present and later `Trusted<BootContext>` verification |
-| `IN-11` | `dtb_identity = {envelope_document_id, envelope_payload_digest, envelope_content_digest, decision_digest, board_id, manifest_document_id, target_id, operation, mutation_list_digest}` | explicit `present` or `not_applicable`; `apply-hardware` requires present; no product mutation is allowed |
-| `IN-12` | `authority_context = {trust_context_id, trust_context_digest, authority_role, authority_version, policy_id, policy_digest, policy_version, expected_context_digest}` | future ratified F-03 source and policy; product derives expected context and compares the supplied digest, never the reverse |
-| `IN-13` | `replay = {request_id, request_nonce, prior_transaction_id, prior_result_digest, caller_uid}` | adapter-generated request identity plus the live journal and verified clock; a caller cannot reuse an old transaction or choose the journal path |
-
-The input has no fields for an assumed board, chip family, architecture decision, arbitrary ref, raw URL, package name outside the verified plan, firmware path, success flag, promotion flag, handle value, key, role override, target-path override, or dynamic command. `OMARCHY_PATH` locates packaged code only and is required as an existing absolute environment value; missing or empty `OMARCHY_PATH` is `OMARCHY_PATH_MISSING`, not a fallback.
-
-### 4.2 `P01.AdmissionResult/v2`
-
-Every adapter subcommand emits exactly one canonical JSON result on stdout and a fixed human summary on stderr unless `--json` suppresses that summary. The result is not one of the eight authenticated payloads and cannot be presented as a platform authority. A successful `open` has a non-forgeable handle; every other outcome has the complete rejection or terminal result object and no handle.
-
-| Output ID | Field and rule |
-| --- | --- |
-| `OUT-01` | `result_schema = P01.AdmissionResult/v2` |
-| `OUT-02` | `adapter_identity = {adapter_id, adapter_api, binding_identity, schema_set_digest}` |
-| `OUT-03` | `decision` is exactly one of `admitted`, `hold`, `reject`, `valid`, `already_applied`, `closed`, `aborted`, `quarantined` |
-| `OUT-04` | `code` is exactly one code in 4.4; unknown or absent code is invalid |
-| `OUT-05` | `path` is exactly one path in 4.4 and identifies the public seam, not a free-form stack trace |
-| `OUT-06` | `phase` is exactly one phase in 4.4 |
-| `OUT-07` | `process_status` is the numeric status in 4.4; no zero status is allowed for a reject, hold, abort, or quarantine |
-| `OUT-08` | `operation`, `scope`, `route_id`, and `transaction_id` are copied from verified context; transaction ID is absent only when parsing fails before a transaction can exist |
-| `OUT-09` | `handle` is present only for `decision=admitted` or `decision=valid`; its opaque form is `omarchy-admit:v2:transaction-id:nonce:mac`, and only the adapter verifies it against a live journal |
-| `OUT-10` | `rejection = {code, path, phase, process_status, safe_next_action}` is mandatory whenever `decision` is `hold`, `reject`, `aborted`, or `quarantined` |
-| `OUT-11` | `admission_identity = {identity_digest, board_id, soc_id, device_tree_identity_digest, firmware_schema_id, target_id, registry_ref, manifest_ref, plan_ref, qualification_provenance, boot_ref, dtb_ref, schema_set_digest, binding_identity, authority_context_digest}` |
-| `OUT-12` | `qualification_provenance` repeats every verified `IN-09` record and is part of `identity_digest`, `admission_result_digest`, journal binding, executor request, and close result |
-| `OUT-13` | `artifact_refs` repeats all eight payload refs with document IDs, content digests, payload digests, schema/binding digests, authority version, freshness, and status |
-| `OUT-14` | `freshness = {verified_clock_id, source_generation, issued_at, expires_at, replay_counter, nonce}`; the earliest expiry governs |
-| `OUT-15` | `admission_result_digest` is `SHA-256(CONCAT(UTF8("P01.AdmissionResult/v2\\0"), UTF8(JCS(result_without_admission_result_digest_and_handle_mac))))` |
-| `OUT-16` | `journal_ref` is an adapter-generated transaction journal identifier and chain digest; the output never accepts a caller-selected journal path |
-
-The identity preimage is exact: `identity_digest = SHA-256(UTF8("P01.AdmissionIdentity/v2\\0") || UTF8(JCS({operation, scope, target, registry_ref, manifest_ref, plan_ref, sorted qualification_provenance, boot_ref, dtb_ref, schema_set_digest, binding_identity, authority_context_digest})))`. Qualification provenance cannot be omitted, replaced by a boolean, or added after the handle is issued.
-
-### 4.3 Closed operation and scope sets
-
-| Operation ID | Operation | Permitted scopes | Product consumer |
-| --- | --- | --- | --- |
-| `OP-01` | `install` | `platform-system`, `platform-hardware` | install adapter and I-03/I-04 |
-| `OP-02` | `setup` | `platform-system`, `platform-hardware` | Mac setup adapter and I-03/I-04 |
-| `OP-03` | `apply-system` | `platform-system` | hidden apply-system adapter and privileged broker |
-| `OP-04` | `apply-hardware` | `platform-hardware` | hidden apply-hardware adapter and I-04 DTB/hardware executor |
-| `OP-05` | `provision-owner` | `platform-system` | hidden owner-provision adapter and I-03 |
-| `OP-06` | `provision-user` | `platform-user`, `universal-user` | hidden user-provision adapter |
-| `OP-07` | `first-run` | `platform-user`, `universal-user` | hidden first-run adapter |
-| `OP-08` | `update` | `platform-update` | update adapter and I-04 |
-| `OP-09` | `channel-set` | `platform-update` | channel adapter and I-04 |
-| `OP-10` | `upgrade` | `platform-system`, `platform-update` | upgrade adapter and I-03/I-04 |
-| `OP-11` | `migrate` | `platform-migration`, `universal-user` | migration adapter and the declared migration primitive |
-| `OP-12` | `recover` | `platform-update`, `platform-system` | resume, rollback, abort, and recovery UI |
-
-| Scope ID | Scope | Privilege and journal owner | Mutation authority |
-| --- | --- | --- | --- |
-| `SCOPE-01` | `platform-system` | effective uid 0; root journal | only the exact admitted system package/config/service/user/checkout/initramfs steps |
-| `SCOPE-02` | `platform-hardware` | effective uid 0; root journal | only the exact admitted hardware, firmware-profile, kernel-parameter, audio, and DTB steps |
-| `SCOPE-03` | `platform-update` | effective uid 0; root journal | only the exact staged tuple, slot request, boot evidence, and update steps |
-| `SCOPE-04` | `platform-user` | effective uid nonzero and equal to journal owner; user journal | only the exact admitted user hardware and capability-marker steps |
-| `SCOPE-05` | `platform-migration` | effective uid 0; root journal | only the exact named migration and marker step |
-| `SCOPE-06` | `universal-user` | effective uid nonzero and equal to journal owner; user journal | only user configuration/theme/application state; no platform-capable primitive |
-| `SCOPE-07` | `read-only` | any uid; no journal or handle | observation and diagnostics only; no mutation |
-
-An operation/scope pair outside these tables returns `ADMISSION_USAGE` at `route.parse`, phase `parse`, process status 2. Root opening a user scope returns `PRIVILEGE_MISMATCH`; a non-root opening a platform scope returns the same code. The adapter never escalates. In a visible terminal, the caller uses `sudo` according to repository privilege rules; without a terminal, a systemd root service or constrained broker uses `pkexec` only where its policy permits it. The adapter never nests or silently chooses an elevation path.
-
-### 4.4 Closed code, path, phase, and result registry
-
-The following registry is closed. Every terminal output must select one row, and every fixture or route rejection cites the exact code, path, phase, process status, and result. Unknown events or codes are themselves `UNKNOWN_EVENT` with process status 9.
-
-| Code | Path | Phase | Process status | Terminal result |
-| --- | --- | --- | --- | --- |
-| `ADMISSION_USAGE` | `route.parse` | `parse` | 2 | `reject`, no handle |
-| `PATH_TRAVERSAL` | `route.parse` | `parse` | 2 | `reject`, no read or write |
-| `FORBIDDEN_ROUTE` | `route.authorize` | `authorize` | 2 | `reject`, no adapter or broker call |
-| `OMARCHY_PATH_MISSING` | `route.bootstrap` | `bootstrap` | 2 | `reject`, no fallback path |
-| `DEPENDENCY_UNRATIFIED` | `dependency.check` | `dependency` | 4 | `hold`, no handle, no mutation |
-| `BINDING_MISMATCH` | `admission.verify` | `verify` | 3 | `reject`, no handle |
-| `TRUST_FAILURE` | `admission.verify` | `verify` | 3 | `reject`, no handle |
-| `OWNER_PROOF_INVALID` | `admission.identity` | `identity` | 3 | `reject`, no handle |
-| `TARGET_ACCOUNT_INVALID` | `admission.identity` | `identity` | 3 | `reject`, no handle |
-| `TARGET_ID_MISMATCH` | `admission.identity` | `identity` | 3 | `reject`, no handle |
-| `PLAN_MISMATCH` | `admission.identity` | `identity` | 3 | `reject`, no handle |
-| `QUALIFICATION_NOT_BOUND` | `admission.identity` | `identity` | 3 | `reject`, no handle and no `qualified` result |
-| `DTB_DECISION_MISSING` | `admission.handoff` | `handoff` | 3 | `reject`, no handle and no DTB action |
-| `FRESHNESS_REPLAY` | `admission.freshness` | `freshness` | 6 | `reject`, no handle |
-| `HANDLE_INVALID` | `admission.check` | `verify` | 8 | `reject`, no mutation |
-| `JOURNAL_FAILURE` | `executor.reserve` | `reserve` | 7 | `reject`, no irreversible step |
-| `CONSENT_MISSING` | `executor.consent` | `consent` | 4 | `hold`, no mutation |
-| `CACHE_MISS` | `executor.preflight` | `preflight` | 4 | `hold`, no network or mutation |
-| `PRIVILEGE_MISMATCH` | `route.authorize` | `authorize` | 5 | `reject`, no broker call |
-| `TARGET_REVALIDATION_FAILED` | `executor.verify` | `verify` | 3 | `reject`, journal preserved, rollback decision required |
-| `BOOT_TUPLE_MISMATCH` | `boot.evaluate` | `verify` | 3 | `reject`, no success or promotion result |
-| `HEALTH_REQUIRED_CHECK_FAILED` | `boot.evaluate` | `verify` | 3 | `reject`, no success or promotion result |
-| `USER_CANCELLED_BEFORE_CONSENT` | `executor.consent` | `consent` | 4 | `aborted`, no transaction mutation |
-| `USER_CANCELLED_AFTER_RESERVE` | `recovery.cancel` | `recover` | 4 | `aborted` only after safe rollback or quarantine |
-| `POWER_LOSS_INTERRUPTED` | `recovery.resume` | `recover` | 4 | `hold`, resume/rollback/abort required |
-| `DISK_FULL` | `executor.apply` | `apply` | 4 | `reject`, journal preserved, rollback required |
-| `RECOVERY_TERMINAL` | `recovery.dispatch` | `terminal` | 9 | `quarantined`, tombstone required |
-| `UNKNOWN_EVENT` | `recovery.dispatch` | `terminal` | 9 | `quarantined`, no action inferred |
-| `PRIVACY_POLICY_UNRATIFIED` | `diagnostics.policy` | `privacy` | 4 | `hold`, local-only conservative result |
-| `SUPPORT_BUNDLE_REDACTION_FAILED` | `diagnostics.export` | `privacy` | 3 | `reject`, bundle not persisted or uploaded |
-| `ACCESSIBILITY_UNAVAILABLE` | `ux.render` | `authorize` | 4 | `hold`, no hidden mutation or false success |
-| `PROMOTION_INTAKE_INVALID` | `promotion.intake` | `promotion` | 3 | `reject`, F-07 must not write |
-
-## 5. Identity, qualification, and result binding
-
-`admit_board` is the only identity resolver. Its input is a verified observation plus `PAY-01`, `PAY-02`, and every qualification record referenced by the exact candidate. It performs ordered exact matching on the signed board ID, SoC identity, normalized device-tree identity digest, firmware schema, lifecycle, and capability IDs. A chip family, `aarch64`, `uname -m`, DMI text, PCI ID, GPU vendor, or one compatible token is diagnostic evidence only. Unknown, ambiguous, unsupported, stale, invalid, unqualified, or cross-board/cross-manifest results are terminal rejects before inventory, package lookup, source access, privilege, or mutation.
-
-The required identity result contains the exact board ID, SoC identity, normalized device-tree identity digest, firmware schema, registry document ID and payload digest, manifest document ID and payload digest, operation, scope, target ID, schema-set digest, binding identity, authority context digest, and the complete qualification provenance. The computed identity and admission result digests include qualification provenance in sorted stable-document order. A qualification record that names a different board, profile, candidate, manifest, test run, or evidence receipt returns `QUALIFICATION_NOT_BOUND`; it cannot downgrade to `unknown` or `not_applicable` after a required capability has been selected.
-
-## 6. Boot handoff and health evaluation
-
-The product boot handoff is `Trusted<BootContext> + VerifiedClock + Trusted<boot-health/v1> + Trusted<boot-success-mark/v1> -> evaluate_boot_health -> product evidence result`. The product does not construct `Trusted<BootContext>`, write a success mark, select a slot, increment a counter, authorize rollback, or promote a candidate. The boot backend and F-07 remain the authorities for those actions.
-
-`Trusted<BootContext>` must expose the verified context identity, board ID, candidate manifest document ID and payload digest, source generation, active slot, target generation, lineage, boot counter, required-check-set digest, verified clock ID, issued-at, expiry, and source evidence digest. `evaluate_boot_health` consumes only that typed context and the two typed boot payloads; a plain JSON marker, shell variable, journal flag, or success string is not a boot context.
-
-| Comparison ID | Exact comparison before `healthy` or `success` result |
-| --- | --- |
-| `BOOT-01` | `context.board_id == admission.board_id == plan.board_id` and all board identities resolve to the same `PAY-01` document and payload digest |
-| `BOOT-02` | `context.manifest_document_id == health.manifest_document_id == success.manifest_document_id == admission.manifest_document_id` and payload digests are byte-equal |
-| `BOOT-03` | `context.slot == health.slot == success.slot == transaction.target_slot`; any unknown or changed slot is `BOOT_TUPLE_MISMATCH` |
-| `BOOT-04` | `context.generation == health.generation == success.generation == transaction.target_generation`; target generation must be greater than the predecessor generation |
-| `BOOT-05` | `context.source_generation == health.source_generation == success.source_generation == transaction.source_generation`; the source generation is recorded, never inferred from a marker |
-| `BOOT-06` | `context.lineage == health.lineage == success.lineage == transaction.target_lineage`, and target lineage names the exact rollback predecessor |
-| `BOOT-07` | `context.counter == health.counter == success.counter == transaction.expected_counter`, where `expected_counter = predecessor.counter + 1`; reset, decrement, gap, or duplicate counter is `BOOT_TUPLE_MISMATCH` |
-| `BOOT-08` | `health.required_checks_digest == success.required_checks_digest == manifest.required_checks_digest`, and every required check has an independently verified pass receipt |
-| `BOOT-09` | `VerifiedClock` is fresh for all records, `issued_at <= observed_at <= expires_at`, replay nonce/counter is unused, and no record predates the transaction source generation |
-| `BOOT-10` | `success` is accepted only after `health` is verified and the backend reports the exact transaction ID; a product-generated or embedded success string is never accepted |
-
-`evaluate_boot_health` returns `healthy`, `success`, `failed`, or `pending` only as a product evidence result with the exact code/path/phase/status. It never returns a promotion authority. F-07 alone consumes the signed digest-addressed evidence bundle and writes stable-channel promotion. A product update route that attempts to write a success or promotion marker is `FORBIDDEN_ROUTE` at `route.authorize`, phase `authorize`, process status 2.
-
-## 7. I-03/I-04 typed executor handoff
-
-The product-to-installer handoff is a closed typed transaction named `P01.ExecutorRequest/v1`; I-03 validates and owns the install-side admission boundary, and I-04 owns the irreversible executor and durable journal. The product may produce a read-only plan and final-consent evidence, but it cannot execute the request or resume it by trusting product-local state.
-
-| Request field | Exact contents and rule |
-| --- | --- |
-| `transaction_id` | UUID generated once by the executor boundary; never reused, copied into every journal and result, and never chosen by a route caller |
-| `operation` and `scope` | Closed values from 4.3, identical to the admitted plan and handle |
-| `owner_proof` and `target_account` | Independently verified receipts from `IN-04` and `IN-05`, bound to the same operation, scope, exact target, plan digest, uid, expiry, and replay identity |
-| `target_ids` | Exact board, SoC, device-tree identity digest, firmware schema, disk, volume, boot target, slot, generation, lineage, and account IDs; revalidated before every irreversible step and again before commit |
-| `verified_cache` | Content-addressed entries `{artifact_id, content_digest, payload_digest, size, verification_receipt_digest, schema_set_digest, binding_identity, source_generation, expires_at}`; all required entries exist and verify before consent |
-| `plan_digest` | Exact digest of the verified plan and its immutable mutation list; an executor never recomputes a new plan from command arguments |
-| `final_consent_receipt` | `{receipt_id, owner/account identity, operation, scope, target_ids, plan_digest, mutation_list_digest, issued_at, expires_at, nonce, replay_counter, decision=consent}` from the final consent boundary; `owner-approval/v1` alone is not final consent |
-| `mutation_list` | Ordered steps `{step_id, primitive_id, target_ids, input_digests, precondition_digest, postcondition_digest, irreversible, rollback_action}`; no unknown primitive or undeclared step is accepted |
-| `journal_id` and `resume_state` | Durable executor journal ID, chain digest, current state, last completed step, predecessor state, retry count, and tombstone/quarantine state; state is re-derived from the journal on resume |
-| `boot_lineage` | Predecessor slot/generation/lineage/counter plus target slot/generation/lineage/counter, exactly matching the admission and boot handoff |
-
-No network fetch, package operation, configuration write, firmware write, DTB write, boot selection, disk/APFS mutation, or system-state mutation occurs before final consent. Cache verification, read-only observation, and consent rendering may happen before it; durable reservation begins only after consent is verified. After consent, stable execution uses the verified cache and exact plan, not the network. Every irreversible step performs target-ID revalidation immediately before the primitive and postcondition verification immediately after it. A mismatch returns `TARGET_REVALIDATION_FAILED` at `executor.verify`, phase `verify`, process status 3 and enters the recovery table.
-
-The executor result is `P01.ExecutorResult/v1` with `{transaction_id, journal_id, operation, scope, plan_digest, mutation_list_digest, target_ids, qualification_provenance, state, code, path, phase, process_status, completed_steps, rollback_state, boot_lineage, result_digest}`. It cannot contain a product-generated success marker or promotion authority. Missing cache is `CACHE_MISS` at `executor.preflight`, phase `preflight`, process status 4; missing or expired final consent is `CONSENT_MISSING` at `executor.consent`, phase `consent`, process status 4; an unwritable or divergent journal is `JOURNAL_FAILURE` at `executor.reserve`, phase `reserve`, process status 7.
-
-## 8. Closed route and call-graph manifest
-
-The route manifest below is the complete product integration census for the current relevant install, apply, provision, channel, update, upgrade, firmware, package, refresh, migration, debug, admission, platform, and leaf-runner paths. The manifest is a closed call graph and is the authority for coverage; grep-style absence checks are not proof. Existing command metadata and `bin/omarchy` discovery remain the repository route authority. The platform registry is not a second command registry.
-
-| Route ID | Current or proposed path | Class | Call-graph role | Exact authorization and terminal rejection |
-| --- | --- | --- | --- | --- |
-| `ROUTE-01` | `install.sh` | adapter | `install -> admission.open -> platform broker -> I-03/I-04` | `install/platform-system` and `install/platform-hardware` handles; pre-consent package/network behavior is forbidden and missing identity returns `TRUST_FAILURE` |
-| `ROUTE-02` | `bin/omarchy-mac-setup` | adapter | `setup -> admission.open -> I-03/I-04` | exact setup plan, owner proof, target account, cache, final consent, and root scope; `--repo`, `--ref`, dynamic steps, and stale markers are rejected |
-| `ROUTE-03` | `bin/omarchy-apply-system` | adapter | hidden apply route -> `apply-system` handle -> broker | retains `# omarchy:hidden=true`; no visible group entry; root scope and exact plan required |
-| `ROUTE-04` | `bin/omarchy-apply-hardware` | adapter | hidden apply route -> `apply-hardware` handle -> broker and I-04 | retains `# omarchy:hidden=true`; DTB envelope required; product never writes DTB |
-| `ROUTE-05` | `bin/omarchy-provision-owner` | adapter | hidden provision route -> `provision-owner` -> I-03 | retains `# omarchy:hidden=true`; root scope, exact target account, and owner proof required |
-| `ROUTE-06` | `bin/omarchy-provision-user` | adapter | hidden provision route -> `provision-user` -> user executor | retains `# omarchy:hidden=true`; user scope must match journal owner; root invocation is `PRIVILEGE_MISMATCH` |
-| `ROUTE-07` | `bin/omarchy-provision-first-run` | adapter | hidden first-run route -> `first-run` -> user executor | retains `# omarchy:hidden=true`; retry marker is evidence only and must revalidate the plan and target |
-| `ROUTE-08` | `bin/omarchy-channel-set` | adapter | channel intent -> manifest-bound `channel-set` update | stable/rc/edge require an exact signed candidate; `dev` is `FORBIDDEN_ROUTE` and cannot enter the stable call graph |
-| `ROUTE-09` | `bin/omarchy-update` | adapter | stable update -> admission -> I-04 -> boot evaluation | exact `platform-update` plan, cache, consent, and boot tuple; ignored snapshot or ignored restart is not completion |
-| `ROUTE-10` | `bin/omarchy-update-system-pkgs` | adapter | package step -> broker -> package primitive | requires a declared plan step and handle; filtered-empty required package is `CACHE_MISS` or `PLAN_MISMATCH`, never successful skip |
-| `ROUTE-11` | `bin/omarchy-update-dev` | development-only | mutable checkout research route | never reachable from stable `update`; a stable caller receives `FORBIDDEN_ROUTE`, and no compatibility or support result is inferred |
-| `ROUTE-12` | `bin/omarchy-update-firmware` | forbidden | current raw fwupd/EFI mutation path | raw firmware refresh and copied EFI writes are forbidden; only a future manifest-bound executor step may replace it |
-| `ROUTE-13` | `bin/omarchy-reinstall-pkgs` | adapter | reinstall intent -> plan -> broker -> package primitive | stable candidate and exact package plan required; raw stable-channel selection is not authorization |
-| `ROUTE-14` | `bin/omarchy-update-restart` | adapter | post-update health/restart evidence | restart is a declared postcondition; `true` suppression cannot close a required transaction |
-| `ROUTE-15` | `bin/omarchy-upgrade-to-quattro-mac` | adapter | upgrade intent -> admission -> I-03/I-04 | `--yes` and `--reboot` are consent/UI options only; arbitrary `--ref`, raw script fetch, and mutable checkout replacement are `FORBIDDEN_ROUTE` |
-| `ROUTE-16` | `bin/omarchy-pkg-add` | adapter | package intent -> declared plan step -> broker | exact package/provider/capability and requiredness from manifest; no direct pacman and no required-package skip |
-| `ROUTE-17` | `bin/omarchy-pkg-drop` | adapter | removal intent -> declared plan step -> broker | exact installed target IDs and rollback action; raw package removal is forbidden |
-| `ROUTE-18` | `bin/omarchy-refresh-pacman` | adapter | source refresh intent -> manifest-bound broker step | exact signed source plan and root broker only; current direct `cp`/pacman route cannot be a stable authority |
-| `ROUTE-19` | `bin/omarchy-refresh-config` | adapter | config intent -> bounded user/system primitive | source must be under `$OMARCHY_PATH/config` and target under the allowed config root; `..`, absolute caller paths, symlinks, and missing `OMARCHY_PATH` are rejected |
-| `ROUTE-20` | `bin/omarchy-migrate` | adapter | named migration -> migration admission -> one marker-after-success step | exact migration ID, plan digest, scope, and marker postcondition; a fallback path or pre-marked migration is not success |
-| `ROUTE-21` | `bin/omarchy-debug` | adapter | read-only diagnostics -> local projection -> explicit upload consent | local export uses the allowlist in 11.3; current world-readable log and upload behavior cannot be the product contract |
-| `ROUTE-22` | `bin/omarchy-admission` | stable | public `open/check/close/status` -> one verifier adapter | exact first-80-line metadata in 8.1; adapter never escalates, never mints `Trusted<T>`, and issues a handle only after every hold clears |
-| `ROUTE-23` | `omarchy-platform` | privileged-broker | adapter -> constrained broker -> I-04 primitives | not present; future broker accepts only typed request, exact handle, immutable plan/cache, and final consent; root/raw calls outside it remain residual |
-| `ROUTE-24` | `install/helpers/logging.sh` and sourced leaves | adapter | leaf runner -> per-step handle check -> primitive | a leaf is not authority; direct `source`, `bash`, copied leaf, or environment-only handle is `FORBIDDEN_ROUTE` |
-| `ROUTE-25` | direct, routed, copied, generated, or dynamic invocation forms | forbidden | hostile call-graph edges | each form maps to a fixture in 12 and must terminate before mutation with its exact code/path/phase/result |
-
-### 8.1 Proposed `bin/omarchy-admission` metadata and grammar
-
-The proposed executable must begin within its first 80 lines with this exact metadata shape. This is a future implementation contract, not a present artifact:
-
-```bash
-#!/bin/bash
-
-# omarchy:summary=Open and verify typed platform admission transactions
-# omarchy:group=admission
-# omarchy:args=[open|check|close|status] [--operation OP] [--scope SCOPE] [--bundle-dir DIR] [--plan FILE] [--owner-proof FILE] [--target-account FILE] [--trust-context FILE] [--policy FILE] [--resume TXN] [--handle HANDLE] [--step STEP] [--json]
-# omarchy:examples=omarchy admission status
+```text
+RatificationReceipt = {
+  receipt_schema: "dependency-ratification/v1",
+  receipt_id: LowerAsciiToken,
+  dependency_id: "F-02" or "F-03" or "F-06" or "F-07",
+  canonical_commit_id: FullCommitId,
+  artifact_id: ArtifactId,
+  artifact_content_digest: Digest,
+  schema_set_digest: Digest,
+  generated_output_lock_digest: Digest or null,
+  authority_version: Version,
+  policy_version: Version,
+  generated_binding_identity: BindingIdentity or null,
+  conformance_receipt_id: ArtifactId,
+  conformance_receipt_digest: Digest,
+  owner_decision_log_entry_id: ArtifactId,
+  owner_decision_log_entry_digest: Digest,
+  trusted_constructor_boundary: ConstructorIdentity,
+  ratification_status: "ratified" or "unratified" or "expired" or "mismatch",
+  issued_at: Timestamp,
+  expires_at: Timestamp
+}
 ```
 
-The command grammar is closed: one subcommand; `open` accepts the bounded file and operation/scope options from 4.1; `check` accepts exactly `--handle`, one declared `--step` or `--complete`, and the expected step/postcondition digest; `close` accepts exactly `--handle` and one outcome from `completed`, `completed_with_optional_gaps`, `failed`, `rolled_back`, or `aborted`; `status` accepts no mutating option and uses `read-only`. Unknown options, duplicated options, arbitrary environment semantics, `--at`, `--board`, `--assume-apple`, `--ref`, raw URL, or shell command arguments return `ADMISSION_USAGE` or `FORBIDDEN_ROUTE` as specified in 4.4.
+`artifact_content_digest` is SHA-256 of the exact canonical artifact bytes. The receipt includes the named preimage and encoding for every digest. `generated_binding_identity`, `schema_set_digest`, and `generated_output_lock_digest` are compared byte-for-byte with the consumer lock. `trusted_constructor_boundary` names one immutable implementation ID and digest that returns a nominal trusted value only after strict parse, canonicalization, authentication, context, freshness, replay, and policy checks. A missing, expired, stale, substituted, mixed, or unverifiable receipt returns the single hold result above.
 
-The `admission` group must be added to the authoritative `GROUP_DESCRIPTIONS` in `bin/omarchy` when the command is implemented. No second group registry is permitted. Existing `apply` and `provision` commands retain their hidden metadata and may remain routed without a group description. Command metadata still scans only the first 80 lines, uses the repository's supported keys, and keeps the filename route aligned with the declared group and name.
+The product slice consumes this exact dependency projection from the supplied program authority commit; it does not invent a shorter path or treat a downstream design as satisfying an upstream node:
 
-## 9. F-06/F-07 evidence handoffs
+```text
+PROGRAM_AUTHORITY_GRAPH = {
+  F-05: [F-03, F-04, F-06, Q-00, Q-01],
+  F-07: [F-05, P-03, P-05, I-09, B-04, Q-04, Q-05, Q-06, Q-07, Q-08],
+  P-01: [F-02, Q-00],
+  P-02: [P-01],
+  P-03: [F-01],
+  P-04: [F-02],
+  P-05: [F-05],
+  P-06: [P-02],
+  P-07: [P-05, P-06],
+  I-03: [F-02, Q-00, I-01, I-07],
+  I-04: [I-02, I-03, I-07],
+  I-08: [I-01, I-07, P-04],
+  I-09: [Q-00, I-02, I-03, I-04, I-05, I-06, I-07, I-08, P-06, P-07]
+}
+```
 
-The product does not refer to a prose section as promotion input. The exact artifact IDs below are the proposed handoff contracts and remain `HOLD-03`/`HOLD-04` until their owners ratify them. F-07 is the sole stable-channel writer. P-03 and P-05 produce evidence only; neither product artifact is a manifest, a qualification record, a boot authority, or a promotion decision.
+`P-01` therefore cannot clear `HOLD-01` until both F-02 and Q-00 receipts are ratified; `P-05` cannot consume a product result until F-05 is closed; and F-07 cannot accept either product handoff until every listed F-05, P-03, P-05, I-09, B-04, and Q-04 through Q-08 receipt is present, fresh, and terminal. The graph is a prerequisite relation, not a completion assertion.
 
-| Handoff ID | Artifact ID and document ID grammar | Required payload and digest preimages | Producer | Consumer | Freshness and bindings | Rejection code/path/phase/result |
-| --- | --- | --- | --- | --- | --- | --- |
-| `HANDOFF-01` | `P03.PARITY-CENSUS.V1`; document ID `p03.parity.v1:candidate_id:revision_decimal` | canonical payload excludes digest fields; `payload_digest = SHA-256(CONCAT(UTF8("omarchy.payload.v1\\0"), UTF8("P03.PARITY-CENSUS.V1"), UTF8("\\0"), JCS(payload_without_digests)))`; `content_digest = SHA-256(CONCAT(UTF8("omarchy.content.v1\\0"), UTF8(document_id), UTF8("\\0"), canonical_envelope_bytes))` | P-03 product census generator | F-07 through the ratified F-06 intake | board/profile, candidate, manifest, qualification, schema-set, binding, authority, and verified-clock bindings; expires with candidate and cannot be replayed across board or candidate | missing/mismatched intake is `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, process status 4, `hold` |
-| `HANDOFF-02` | `P05.UPDATE-EVIDENCE.V1`; document ID `p05.update.v1:transaction_id:revision_decimal` | same exact preimage framing with artifact ID `P05.UPDATE-EVIDENCE.V1`; payload includes transaction, plan, mutation, cache, owner/account, boot-health, success-mark, slot, generation, lineage, counter, and rollback evidence digests | P-05 product evidence producer | F-07 through the ratified F-06 intake | exact board, candidate, manifest, qualification, transaction, health, lineage, slot, generation, counter, and verified-clock bindings; evidence is immutable and expires with transaction policy | a mismatch is `PROMOTION_INTAKE_INVALID` at `promotion.intake`, phase `promotion`, process status 3, `reject`; F-07 does not write |
-| `HANDOFF-03` | `F06.COMPLIANCE-INTAKE.V1`; document ID `f06.compliance.v1:candidate_id:revision_decimal` | canonical compliance payload uses the same explicit `payload_digest` and `content_digest` preimages recorded in its ratification receipt; it includes the exact product evidence document IDs and digests, owner decision-log entry, conformance receipt, qualification refs, and required-slice closure | F-06 compliance owner | F-07 promotion terminal | candidate/manifest/qualification/transaction/health/lineage bindings, authority/policy version, schema-set/binding digest, verified clock and expiry | absent, unratified, stale, or mismatched is `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, process status 4, `hold` |
-| `HANDOFF-04` | `F07.PROMOTION-EVIDENCE.V1`; document ID `f07.promotion.v1:candidate_id:revision_decimal` | exact candidate evidence payload and its ratification receipt; content and payload digest preimages are those ratified by F-07, never inferred from a section reference; product data remains nested evidence | F-07 promotion terminal | stable-channel release writer owned by F-07 | exact candidate, manifest, board/profile, qualification, transaction, health, lineage, slot, generation, counter, authority, and policy bindings; one candidate and one immutable revision per decision | invalid intake is `PROMOTION_INTAKE_INVALID` at `promotion.intake`, phase `promotion`, process status 3, `reject`; product cannot override or write promotion |
+### 2.2 One trusted constructor seam
 
-The product records the artifact ID, document ID, content digest, payload digest, schema-set digest, binding identity, producer, consumer, verified clock, freshness, and decision-log/conformance references in its evidence result. It does not manufacture F-06 or F-07 authority fields. A product output is evidence only, and a missing F-07 artifact remains `NOT IMPLEMENTED` in section 13.
+There is exactly one future cross-repository construction seam:
 
-## 10. Total recovery and rollback
+```text
+construct_trusted<T>(canonical_input, expected_context, verified_clock,
+                     ratification_receipt) -> Trusted<T> or TerminalError
+```
 
-Recovery is a closed state machine. `MAX_RECOVERY_ATTEMPTS = 3` is numeric and applies per durable transaction ID. `transaction_id` is never reused. Resume re-derives state from the journal, revalidates all exact target and artifact identities, and issues no authority from carried process memory. A second rollback attempt is forbidden: `rollback_depth` may reach 1 only; a rollback failure enters quarantine and tombstone rather than recursive rollback.
+`Trusted<T>` is a private nominal wrapper. Product code, shell, a fixture, an executor, a journal reader, a support bundle, or a generated binding may not instantiate, deserialize, cast, unwrap, or mint it. A rejected input yields no partially trusted field. Supporting records such as `OwnerProofReceipt`, `TargetAccount`, `Observation`, `VerifiedClock`, `AtomicBootRecord`, and `VerifiedDtbInputs` are not additional payload types and do not create an alternate seam.
 
-| State ID | State | Durable meaning and allowed next state |
-| --- | --- | --- |
-| `STATE-01` | `pending_consent` | verified read-only plan exists; cancel or consent only |
-| `STATE-02` | `consented` | final consent receipt is durable and fresh; reserve or abort only |
-| `STATE-03` | `reserved` | exact transaction and target IDs reserved after consent; apply or recover only |
-| `STATE-04` | `applying` | one declared mutation step is active; verify, interrupted, or recover only |
-| `STATE-05` | `verifying` | postcondition and target identity are being checked; next commit, recover, or quarantine |
-| `STATE-06` | `committed` | atomicity boundary completed and target generation/slot is recorded; health evaluation only |
-| `STATE-07` | `recovering` | rollback or resume action is active with `rollback_depth <= 1`; verify or terminal only |
-| `STATE-08` | `rolled_back` | exact predecessor restored and verified; close or quarantine only |
-| `STATE-09` | `quarantined` | no further mutation permitted; operator evidence and abort/tombstone only |
-| `STATE-10` | `aborted` | transaction ended without success; journal and evidence retained; no resume |
-| `STATE-11` | `tombstoned` | terminal identity permanently closed; no handle, resume, rollback, or mutation |
+## 3. Ratified F-02 capability and boot type mapping
 
-| Event ID | Event | From | Action and result |
+The exact F-02 capability record that this product contract requires a future ratification receipt to ratify is:
+
+```text
+ConsumerCapabilities = {
+  capabilities_schema: "consumer-capabilities/v1",
+  consumer_id: LowerAsciiToken,
+  language: "python" or "swift" or "rust-boot",
+  consumer_api: ApiVersion,
+  api_id: LowerAsciiToken,
+  schema_set_digest: Digest,
+  generated_binding_identity: {
+    binding_id: LowerAsciiToken,
+    binding_version: Version,
+    binding_source_digest: Digest,
+    parser_id: LowerAsciiToken,
+    parser_version: Version,
+    parser_source_digest: Digest,
+    api_id: LowerAsciiToken,
+    api_version: Version,
+    api_source_digest: Digest
+  },
+  supported_payload_types: ExactList<PayloadType, payload_type>,
+  supported_payload_types_digest: Digest,
+  compiled_lock_digest: Digest,
+  generated_artifact_id: ArtifactId,
+  generated_output_path: RelativeBindingPath,
+  generated_output_digest: Digest,
+  boot_artifact_id: ArtifactId or null,
+  boot_artifact_digest: Digest or null
+}
+```
+
+The referenced lock and binding identities are closed as follows:
+
+```text
+ApiVersion = {major: uint16, minor: uint16, patch: uint16}
+BindingIdentity = {
+  binding_id: LowerAsciiToken, binding_version: Version, binding_source_digest: Digest,
+  parser_id: LowerAsciiToken, parser_version: Version, parser_source_digest: Digest,
+  api_id: LowerAsciiToken, api_version: ApiVersion, api_source_digest: Digest
+}
+GeneratedOutputLock = {
+  lock_schema: "generated-output-lock/v1", schema_set_digest: Digest,
+  generated_entries: ExactList<GeneratedEntry, language_and_artifact_id>
+}
+GeneratedEntry = {
+  language: "python" or "swift" or "rust-boot", artifact_id: ArtifactId,
+  output_path: RelativeBindingPath, binding_identity: BindingIdentity,
+  generator_input_id: LowerAsciiToken, parser_input_id: LowerAsciiToken,
+  toolchain_input_id: LowerAsciiToken, source_schema_ids: ExactList<SchemaId, schema_id>,
+  output_digest: Digest, line_endings: "LF", file_order_digest: Digest,
+  bounded_memory_report_digest: Digest, consumer_api: ApiVersion,
+  output_role: "parser" or "binding" or "schema-constants" or "boot-binding"
+}
+CompiledLock = {
+  lock_schema: "compiled-binding-lock/v1", schema_set_digest: Digest,
+  language: "python" or "swift" or "rust-boot", consumer_api: ApiVersion,
+  binding_identity: BindingIdentity, parser_identity: BindingIdentity,
+  toolchain_input_id: LowerAsciiToken, source_schema_ids: ExactList<SchemaId, schema_id>,
+  generated_artifact_id: ArtifactId, generated_output_path: RelativeBindingPath,
+  generated_output_digest: Digest, lock_digest: Digest
+}
+GeneratedBindingMetadata = {
+  metadata_schema: "generated-binding-metadata/v1", language: "python" or "swift" or "rust-boot",
+  binding_identity: BindingIdentity, generated_artifact_id: ArtifactId,
+  generated_output_digest: Digest, compiled_lock_digest: Digest
+}
+```
+
+`ApiVersion` is three numeric uint16 components compared lexicographically as `(major, minor, patch)`. `supported_payload_types` is exactly the eight-value set in section 4, in the declared order, with no missing, extra, duplicate, or reordered member; `supported_payload_types_digest = SHA256(FRAME("consumer-capabilities.payload-set/v1", JCS(supported_payload_types)))`. The required manifest binding and consumer capability are compatible only when the schema-set digest, language, API ID and version, parser identity, generated artifact ID/path/digest, compiled lock, boot artifact, payload-set digest, and every supported payload value agree. `load_consumer_capabilities(Trusted<CompiledLock>, Trusted<GeneratedOutputLock>, Trusted<GeneratedBindingMetadata>)` is the only loader. There is no missing-type default, extra-type ignore, mixed-lock selection, parser substitution, output-path substitution, boot-binding substitution, string API comparison, downgrade, or stale-lock fallback.
+
+The exact F-02 boot records are:
+
+```text
+AtomicBootRecord = {
+  record_schema: "atomic-boot-record/v1",
+  record_id: UUID,
+  project_id: ProjectId,
+  repository_id: RepositoryId,
+  slice_id: SliceId,
+  board_id: BoardId,
+  manifest_id: DocumentId,
+  manifest_digest: Digest,
+  lineage_id: UUID,
+  slot_id: "slot-a" or "slot-b" or "recovery",
+  slot_generation: uint64,
+  attempt_counter: uint64,
+  source_generation: uint64,
+  commit_state: "committed",
+  bytes_digest: Digest,
+  source: SourceEvidence,
+  replay_id: UUID
+}
+
+BootContext = {
+  context_schema: "boot-context/v1",
+  board_id: BoardId,
+  manifest_id: DocumentId,
+  manifest_digest: Digest,
+  lineage_id: UUID,
+  slot_id: "slot-a" or "slot-b" or "recovery",
+  slot_generation: uint64,
+  attempt_counter: uint64,
+  source_generation: uint64,
+  atomic_record_digest: Digest,
+  lineage_source_digest: Digest,
+  provenance: {
+    source_kind: "atomic-boot-journal/v1",
+    source_api_version: Version,
+    storage_generation: uint64
+  }
+}
+```
+
+The supporting source records used by the F-02 constructor are also closed:
+
+```text
+SourceEvidence = {
+  evidence_schema: "source-evidence/v1", source_kind: LowerAsciiToken,
+  source_id: LowerAsciiToken, adapter_id: LowerAsciiToken, adapter_api_version: Version,
+  source_generation: uint64, evidence_digest: Digest, captured_at: Timestamp,
+  expires_at: Timestamp, nonce: Nonce, source_record_digest: Digest
+}
+VerifiedClock = {
+  clock_schema: "verified-clock/v1", clock_id: LowerAsciiToken, now: Timestamp,
+  source_generation: uint64, monotonic_sequence: uint64, valid_until: Timestamp,
+  attestation_digest: Digest
+}
+BootCheck = {
+  check_id: LowerAsciiToken, required: true or false,
+  outcome: "pass" or "fail" or "not_run", measurement_digest: Digest,
+  evidence_digest: Digest, evaluated_at: Timestamp, expires_at: Timestamp
+}
+BootHealthCore = {
+  document_id: DocumentId, payload_digest: Digest, board_id: BoardId,
+  manifest_id: DocumentId, manifest_digest: Digest, profile_id: LowerAsciiToken,
+  profile_digest: Digest, lineage_id: UUID, source_generation: uint64,
+  slot_id: SlotId, slot_generation: uint64, attempt_counter: uint64,
+  checks: ExactList<BootCheck, check_id>, checks_digest: Digest,
+  rollback_set_digest: Digest, observed_at: Timestamp, expires_at: Timestamp
+}
+BootSuccessMark = {
+  document_id: DocumentId, payload_digest: Digest, core_digest: Digest,
+  board_id: BoardId, manifest_id: DocumentId, manifest_digest: Digest,
+  profile_id: LowerAsciiToken, profile_digest: Digest, lineage_id: UUID,
+  source_generation: uint64, slot_id: SlotId, slot_generation: uint64,
+  attempt_counter: uint64, marker_generation: uint64, marked_at: Timestamp,
+  checks_digest: Digest, rollback_set_digest: Digest, marker_replay_id: UUID,
+  diagnostic_note: SafeDescription, signatures: ExactList<Signature, key_id>
+}
+TrustContext = {
+  context_schema: "trust-context/v1", context_id: LowerAsciiToken,
+  authority_bindings: ExactList<AuthorityRoleBinding, role_and_actor_id>,
+  key_set_digest: Digest, revocation_epoch: uint64, issued_at: Timestamp, expires_at: Timestamp
+}
+AuthorityRoleBinding = {
+  binding_schema: "authority-role-binding/v1", authority_id: LowerAsciiToken,
+  role: "board-admission" or "manifest-release" or "installer-planner" or "owner-authorization"
+        or "ci-conformance" or "qualification-lab" or "boot-runtime" or "dtb-authority" or "evidence-reader",
+  actor_id: ActorId, account_id: AccountId, key_ids: ExactList<KeyId, key_id>,
+  allowed_methods: ExactList<AuthorizationMethod, method>, service_policy_id: PolicyId,
+  service_policy_digest: Digest, issued_at: Timestamp, expires_at: Timestamp,
+  binding_digest: Digest
+}
+```
+
+`verify_boot_context(Trusted<AtomicBootRecord>, Trusted<TrustContext>, VerifiedClock)` is the only constructor. It accepts one complete atomically read trusted record and checks exact bytes and `bytes_digest`, board, manifest, slot, slot generation, monotonic attempt counter, source generation, committed state, expiry, replay reservation, and role `boot-runtime`. A partial read, caller-created record, mutable field, local default, reset, reuse, lower value, missing authenticated source, or failed recomputation returns `TRUST_BOUNDARY_FAILURE` or `BOOT_COUNTER_FAILURE` and no context.
+
+The product mapping is exact and contains no local aliases:
+
+| Product field | F-02 field | Equality and owner | Missing or changed value |
 | --- | --- | --- | --- |
-| `EVENT-01` | `open_verified` | none | create `pending_consent` with exact input/result digests; unknown dependency holds before this state |
-| `EVENT-02` | `consent_accepted` | `pending_consent` | verify final consent and move to `consented`; missing/expired receipt is `CONSENT_MISSING` |
-| `EVENT-03` | `cancel_before_consent` | `pending_consent` | write `aborted` with `USER_CANCELLED_BEFORE_CONSENT`; no executor mutation or journal reservation |
-| `EVENT-04` | `reserve_verified` | `consented` | create durable `reserved` record after target/cache/privilege revalidation |
-| `EVENT-05` | `step_started` | `reserved`, `applying` | move to `applying` only for a declared step with exact target IDs |
-| `EVENT-06` | `step_verified` | `applying` | move to `verifying`; postcondition and target revalidation are mandatory |
-| `EVENT-07` | `commit_verified` | `verifying` | atomically commit exact target generation and slot, then move to `committed` |
-| `EVENT-08` | `health_passed` | `committed` | `evaluate_boot_health` verifies all BOOT comparisons and closes as evidence; no product promotion |
-| `EVENT-09` | `health_failed` | `committed`, `verifying` | move to `recovering` with exact predecessor, unless rollback depth or identity rules fail |
-| `EVENT-10` | `cancel_after_reserve` | `reserved`, `applying`, `verifying` | stop at the atomic boundary and rollback exactly once; result is `USER_CANCELLED_AFTER_RESERVE` |
-| `EVENT-11` | `power_loss_or_process_loss` | any nonterminal state | re-open as `recovering` with `POWER_LOSS_INTERRUPTED`; rederive the last durable step |
-| `EVENT-12` | `rollback_verified` | `recovering` | restore predecessor slot/generation/lineage/counter and move to `rolled_back` |
-| `EVENT-13` | `retry_exhausted_or_rollback_failed` | `recovering` | increment attempts; at attempt 3 or rollback failure move to `quarantined`, then tombstone |
-| `EVENT-14` | `unknown_or_impossible` | any state | perform no inferred action; write `UNKNOWN_EVENT`, quarantine, and tombstone after preserving evidence |
+| `admission.board_id` | `AtomicBootRecord.board_id`, `BootContext.board_id` | equal to verified board registry and manifest target; F-02 owns source | `BOOT_CONTEXT_MISMATCH` |
+| `admission.manifest_document_id` | `manifest_id` | equal to the exact manifest document ID | `BOOT_CONTEXT_MISMATCH` |
+| `admission.manifest_payload_digest` | `manifest_digest` | byte-equal in record, context, manifest, health, and marker | `BOOT_CONTEXT_MISMATCH` |
+| `boot.lineage_id` | `lineage_id` | equal across record, context, health, marker, and transaction | `BOOT_CONTEXT_MISMATCH` |
+| `boot.slot_id` | `slot_id` | one of the three F-02 values and equal to transaction target | `BOOT_CONTEXT_MISMATCH` |
+| `boot.slot_generation` | `slot_generation` | uint64 and strictly greater than predecessor for a new target | `BOOT_COUNTER_FAILURE` |
+| `boot.attempt_counter` | `attempt_counter` | uint64, committed source value, no reset, gap, duplicate, or wrap | `BOOT_COUNTER_FAILURE` |
+| `boot.source_generation` | `source_generation` | equal in atomic record, context, health, marker, and source evidence | `BOOT_CONTEXT_MISMATCH` |
+| `boot.atomic_record_digest` | `atomic_record_digest` | digest of the complete authenticated atomic record | `TRUST_BOUNDARY_FAILURE` |
+| `boot.lineage_source_digest` | `lineage_source_digest` | digest of the authenticated lineage source, never a local marker | `TRUST_BOUNDARY_FAILURE` |
+| `boot.provenance` | `provenance` | exact `atomic-boot-journal/v1`, source API, and storage generation | `TRUST_BOUNDARY_FAILURE` |
+| product `context_id` | none | not accepted as authority; a diagnostic reference must be the record digest | `UNKNOWN_FIELD` or `TRUST_BOUNDARY_FAILURE` |
+| product clock | `VerifiedClock` | F-02 verified clock is supplied, not caller time | `TRUST_BOUNDARY_FAILURE` |
 
-The atomicity boundary is the I-04 backend's durable commit of the staged content, exact inactive/active target identity, boot selection request, and journal commit record. Before that boundary, an interrupted step must either prove no visible mutation or use the one exact rollback action. After it, health evaluation and rollback use the recorded predecessor; neither product code nor a stale marker invents a predecessor. Slot, generation, lineage, and counter comparisons are the BOOT-03 through BOOT-07 rules. Tombstone/quarantine records include transaction ID, journal chain digest, last state, attempt count, predecessor, exact failure code/path/phase, and redacted evidence only.
+`evaluate_boot_health(Trusted<BootHealthCore>, Trusted<BootSuccessMark> or None, Trusted<PlatformManifest>, Trusted<BootContext>, VerifiedClock) -> SlotDecision` is the only product health handoff. It checks the exact board, manifest, profile, slot, generation, lineage, source generation, counter, required-check set, check digest, marker core digest, signature context and role, marker generation, verified time, replay reservation, rollback set, and atomic-record length. Missing marker means no success. Product receives evidence only and never constructs context, selects a slot, increments a counter, writes a marker, authorizes rollback, or promotes a candidate.
 
-## 11. UX, accessibility, privacy, and user-visible outcomes
+## 4. Closed authenticated payload registry
 
-The UX consumes typed results and never renders a green completion state from a warning, skipped required action, missing marker, or zero exit alone. Every outcome below has an exact machine result and an exact user-visible result. The screen-reader and keyboard path has the same state transitions and cannot expose a hidden recovery action.
+The authenticated payload vocabulary is exactly these eight values. The first five are the primary F-02 documents and the last three are auxiliary authenticated payloads. No local ninth type, alternate spelling, owner-specific type, or private extension is valid.
 
-| UX case | Machine result | User-visible result and accessibility rule |
+```text
+PAYLOAD_TYPES = [
+  board-registry/v1,
+  platform-manifest/v1,
+  installer-plan/v1,
+  qualification-record/v1,
+  boot-health/v1,
+  owner-approval/v1,
+  boot-success-mark/v1,
+  dtb-mutation-envelope/v1
+]
+```
+
+Every payload is an `omarchy-signed/v1` envelope with exactly `format`, `payload_type`, `payload_version`, `domain`, `context`, `schema_set_digest`, `payload`, and `signatures`. Every payload object has exactly the common fields `schema`, `schema_set_digest`, `document_id`, `issuer`, `issued_at`, and `expires_at`, followed by its type-specific fields. Every signature has exactly `key_id`, `signer_role`, `algorithm`, `signature_format`, and `signature`; v1 permits only Ed25519 raw signatures with 64 decoded bytes and unpadded base64url encoding.
+
+| Payload ID | Type-specific fields, in closed schema order | Domain, context, producer, consumer |
 | --- | --- | --- |
-| Cancel before final consent | `USER_CANCELLED_BEFORE_CONSENT`, `executor.consent`, `consent`, status 4, `aborted` | `Cancelled before changes. Nothing was mutated.` Focus returns to the operation; the cancel and confirm controls have labels, keyboard order, and screen-reader names |
-| Cancel after reserve | `USER_CANCELLED_AFTER_RESERVE`, `recovery.cancel`, `recover`, status 4, `aborted` only after verified rollback | `Cancellation requested; the system is verifying rollback.` No success state is shown until rollback or quarantine is terminal; progress is exposed through an accessible live region |
-| Offline or cache miss | `CACHE_MISS`, `executor.preflight`, `preflight`, status 4, `hold` | `Required verified content is unavailable offline. No changes were made.` The retry action is keyboard reachable and cannot fetch an arbitrary URL |
-| Disk full | `DISK_FULL`, `executor.apply`, `apply`, status 4, `reject` | `The operation stopped because the target is full. Recovery is required.` The result keeps the journal and names resume/rollback; no false completion or reboot prompt |
-| Wrong target at admission | `TARGET_ID_MISMATCH`, `admission.identity`, `identity`, status 3, `reject` | `The selected target is not the verified target. No mutation was authorized.` Exact target identity is announced without exposing raw serials |
-| Wrong target at irreversible step | `TARGET_REVALIDATION_FAILED`, `executor.verify`, `verify`, status 3, `reject` | `The target changed before a protected step. The transaction is preserved for recovery.` Exact target identity is announced without exposing raw serials |
-| Interrupted recovery | `POWER_LOSS_INTERRUPTED`, `recovery.resume`, `recover`, status 4, `hold` | `Recovery is pending for the redacted transaction identifier. Choose resume, rollback, or abort.` The same actions are available by keyboard and screen reader; no automatic recursion |
-| Unknown or impossible event | `UNKNOWN_EVENT`, `recovery.dispatch`, `terminal`, status 9, `quarantined` | `Recovery entered a safe terminal state. Support evidence is available; no further changes will be attempted.` |
-| Missing accessible control | `ACCESSIBILITY_UNAVAILABLE`, `ux.render`, `authorize`, status 4, `hold` | `This operation cannot safely continue without an accessible control path.` No mutation starts and no control is hidden from keyboard or assistive technology |
-| No false success | no success code; any required gap remains `required_blocked` represented by `PLAN_MISMATCH`, `HEALTH_REQUIRED_CHECK_FAILED`, or another exact registry code | Only `Applied and verified`, `Completed with optional gaps`, `Rolled back`, `Aborted`, `Quarantined`, or a named hold/reject may be shown; `Install complete` and `Update complete` require all required postconditions |
-| Support bundle redaction failure | `SUPPORT_BUNDLE_REDACTION_FAILED`, `diagnostics.export`, `privacy`, status 3, `reject` | `Diagnostics were not saved because sensitive data could not be removed.` No raw bundle is persisted or uploaded |
-| Unratified privacy policy | `PRIVACY_POLICY_UNRATIFIED`, `diagnostics.policy`, `privacy`, status 4, `hold` | `Upload is unavailable until the privacy policy is ratified. A conservative local result may remain available.` |
-| Upload declined or endpoint not allowed | `FORBIDDEN_ROUTE`, `route.authorize`, `authorize`, status 2, `reject` | `Upload was not requested or the endpoint is not approved. The local bundle remains available.` |
+| `PAY-01` | `registry_revision`, `boards`, `capability_vocabulary` | `omarchy-board-registry`, `board-registry-publication`, platform registry, P-01 board admission |
+| `PAY-02` | `channel`, `release_version`, `board_registry_digest`, `board_targets`, `qualification_bindings`, `components`, `artifacts`, `package_set`, `compatibility`, `firmware_schema`, `consumer_schema_set`, `minimum_consumer_api`, `rollback` | `omarchy-platform-manifest`, `manifest-publication`, release assembler, P-01 and I-04 |
+| `PAY-03` | `inventory`, `selection`, `scope`, `mutations`, `rollback_boundaries`, `recovery_requirements` | `omarchy-installer-plan`, `installer-plan-proposal`, read-only planner, I-03 and I-04 |
+| `PAY-04` | `board`, `manifest`, `qualification_profile_id`, `test_results`, `outcome`, `residuals`, `operator`, `lab`, `evidence` | `omarchy-qualification-record`, `qualification-result`, qualification authority, P-01, P-03, P-05, F-07 |
+| `PAY-05` | `board_id`, `manifest_id`, `manifest_digest`, `profile_id`, `profile_digest`, `lineage_id`, `source_generation`, `slot_id`, `slot_generation`, `attempt_counter`, `checks`, `checks_digest`, `success`, `fallback` | `omarchy-boot-runtime`, `boot-health-core`, boot runtime, P-05 health evidence |
+| `PAY-06` | `plan_digest`, `scope_digest`, `project_id`, `repository_id`, `slice_id`, `board_id`, `board_registry_digest`, `manifest_id`, `manifest_digest`, `schema_set_digest`, `policy_id`, `policy_digest`, `actor_id`, `account_id`, `actor_role`, `approved_at`, `topology_digest`, `target_ids`, `target_identities`, `operations`, `authorization_method`, `authorization_result`, `external_proof_digest`, `authorization_evidence_digest`, `service_policy_id`, `service_policy_digest`, `replay_id`, `proof_receipt_id`, `target_account_record_id`, `target_account_binding` | `omarchy-owner-authorization`, `installer-plan-execution`, owner authorization service, P-01 and I-03 |
+| `PAY-07` | `core_digest`, `board_id`, `manifest_id`, `manifest_digest`, `profile_id`, `profile_digest`, `lineage_id`, `source_generation`, `slot_id`, `slot_generation`, `attempt_counter`, `marker_generation`, `marked_at`, `checks_digest`, `rollback_set_digest`, `marker_replay_id`, `diagnostic_note` | `omarchy-boot-runtime`, `boot-success-marker`, boot runtime, P-05 evaluator and F-07 evidence intake |
+| `PAY-08` | `board_identity`, `source_identity`, `platform_manifest_document_id`, `platform_manifest_payload_digest`, `pre_mutation_dtb_digest`, `post_mutation_dtb_digest`, `policy_identity`, `tool_identity`, `artifact_identity`, `firmware_bundle_identity`, `dt_schema_identity`, `authorized_mutations`, `signer_authority`, `nonce`, `replay_identity` | `omarchy-dtb-authority`, `dtb-mutation-authorization`, DTB policy authority, I-04 only |
 
-### 11.1 Keyboard and screen-reader contract
+`PAY-07` is listed with its full payload fields once; `schema`, `schema_set_digest`, `document_id`, `issuer`, `issued_at`, and `expires_at` are the common fields and are not duplicated on the wire. `PAY-08` is the eighth and final type. A payload field not listed here or in the closed nested grammar below is `UNKNOWN_FIELD`.
 
-Every operation has a visible focus order of target summary, exact scope, plan summary, required/optional capability result, consent, cancel, and recovery actions. Every status transition uses a text label and live-region announcement; color, audio, timer, and motion never carry the only meaning. `Esc` or an explicit Cancel action maps to the cancellation event at the current state. Resume, rollback, and abort are separate controls with the same exact transaction ID and result code, and their disabled state is exposed programmatically. A keyboard or screen-reader implementation that cannot preserve this contract returns `ACCESSIBILITY_UNAVAILABLE` before consent.
+Every payload also has this complete source-to-consumer binding row. The artifact IDs are required future receipts, not claims that the artifacts exist:
 
-### 11.2 Support-bundle field allowlist and redaction
+```text
+PayloadIntegrationMap = [
+  {id: PAY-01, source_artifact_id: f02.board-registry.v1, validator_artifact_id: f02.validator.v1,
+   binding_identity: f02.generated-binding.board-registry.v1, consumer: P-01,
+   freshness: issued_at <= verified_clock.now <= expires_at,
+   rejection: {code: SIGNATURE_CONTEXT_MISMATCH, path: $.payload, phase: verify, process_status: 3}},
+  {id: PAY-02, source_artifact_id: f02.platform-manifest.v1, validator_artifact_id: f02.validator.v1,
+   binding_identity: f02.generated-binding.platform-manifest.v1, consumer: P-01/I-04,
+   freshness: issued_at <= verified_clock.now <= expires_at,
+   rejection: {code: CROSS_DOCUMENT_MISMATCH, path: $.payload.manifest_digest, phase: cross_document, process_status: 3}},
+  {id: PAY-03, source_artifact_id: f02.installer-plan.v1, validator_artifact_id: f02.validator.v1,
+   binding_identity: f02.generated-binding.installer-plan.v1, consumer: I-03/I-04,
+   freshness: issued_at <= verified_clock.now <= expires_at,
+   rejection: {code: PLAN_MISMATCH, path: $.payload.mutations, phase: identity, process_status: 3}},
+  {id: PAY-04, source_artifact_id: f02.qualification-record.v1, validator_artifact_id: f02.validator.v1,
+   binding_identity: f02.generated-binding.qualification-record.v1, consumer: P-01/P-03/P-05/F-07,
+   freshness: issued_at <= verified_clock.now <= expires_at,
+   rejection: {code: QUALIFICATION_NOT_BOUND, path: $.payload.board, phase: identity, process_status: 3}},
+  {id: PAY-05, source_artifact_id: f02.boot-health.v1, validator_artifact_id: f02.validator.v1,
+   binding_identity: f02.generated-binding.boot-health.v1, consumer: P-05,
+   freshness: issued_at <= VerifiedClock.now <= expires_at,
+   rejection: {code: BOOT_REQUIRED_CHECK_FAILURE, path: $.payload.checks, phase: boot.evaluate, process_status: 4}},
+  {id: PAY-06, source_artifact_id: f03.owner-authorization.v1, validator_artifact_id: f03.validator.v1,
+   binding_identity: f03.generated-binding.owner-authorization.v1, consumer: P-01/I-03,
+   freshness: valid_from <= VerifiedClock.now <= expires_at and replay_id unused,
+   rejection: {code: OWNER_PROOF_INVALID, path: $.payload.target_account_binding, phase: identity, process_status: 3}},
+  {id: PAY-07, source_artifact_id: f02.boot-success-mark.v1, validator_artifact_id: f02.validator.v1,
+   binding_identity: f02.generated-binding.boot-success-mark.v1, consumer: P-05/F-07,
+   freshness: marked_at <= VerifiedClock.now <= expires_at and marker_replay_id unused,
+   rejection: {code: BOOT_MARKER_AUTH_FAILURE, path: $.payload.signatures, phase: boot.evaluate, process_status: 4}},
+  {id: PAY-08, source_artifact_id: f02.dtb-mutation-envelope.v1, validator_artifact_id: f02.validator.v1,
+   binding_identity: f02.generated-binding.dtb-mutation-envelope.v1, consumer: I-04,
+   freshness: issued_at <= VerifiedClock.now <= expires_at and replay_identity unused,
+   rejection: {code: DTB_DECISION_MISSING, path: $.payload.authorized_mutations, phase: handoff, process_status: 3}}
+]
+```
 
-Redaction happens before journal, log, local bundle, or upload persistence. The allowlist is closed to these fields: `result_schema`, adapter identity, operation, scope, route ID, transaction ID pseudonym, journal chain digest, exact code/path/phase/process status, decision, safe next action, artifact IDs, document IDs, content/payload/schema/binding digests, authority and policy versions, verified-clock ID and quantized times, capability IDs/status/reason code, board/profile IDs when policy permits, and pseudonymized target/owner/account IDs. Raw account names, UIDs, owner proof contents, target serials, disk paths, volume paths, environment values, access tokens, private keys, handles, MAC keys, package credentials, URLs with query secrets, command output containing secrets, and raw device-tree or firmware identifiers are never persisted.
+The validator and binding IDs in this map must resolve through the exact ratification receipt and both generated locks. A missing artifact, handwritten adapter, consumer-specific shadow schema, or stale output changes the row to `DEPENDENCY_UNRATIFIED` or `BINDING_INTEGRITY_FAILURE`; it never yields a local pass.
 
-The local default is a redacted file with mode 0600 and a 30-day retention timer; user deletion removes the local bundle and its index immediately. Upload is opt-in after a second explicit consent, uses only `https://logs.omarchy.org/v1/support-bundles` over verified TLS, rejects redirects and every other endpoint, and carries only the allowlist. The proposed remote retention is 24 hours with server-side deletion evidence. F-06/F-07 or I-08 may ratify a stricter policy, but until the privacy policy owner supplies its ratification receipt, upload returns `PRIVACY_POLICY_UNRATIFIED` and local-only conservative export is the only available outcome. A policy hold never authorizes a broader field set.
+The closed lexical grammar is: `DocumentId` is lowercase ASCII matching `^[a-z0-9][a-z0-9._:-]{0,127}$`; `Digest` is `sha256:` plus 64 lowercase hexadecimal characters; `UUID` is lowercase RFC 4122 text; `Timestamp` is RFC 3339 UTC ending in `Z` with millisecond precision at most; `Version` and `ApiVersion` have three uint16 components; `uint64` is 0 through 18,446,744,073,709,551,615; `Nonce` is unpadded base64url decoding to 16 through 32 bytes; `B64URL_NO_PAD_64_BYTES` is unpadded base64url decoding to exactly 64 bytes; and every object is closed. Input is at most 1 MiB, depth 32, object properties 128, array length 1,024, string length 4,096 UTF-8 bytes, total string bytes 256 KiB, and integer magnitude 2^63-1 unless a narrower field bound applies.
 
-## 12. Enforcement and hostile fixtures
+All named scalar and handoff aliases are closed and machine-checkable:
 
-The enforcement promise is a closed route/call-graph manifest plus a privileged mutation boundary, not a grep-style assertion. The future boundary is: public route validates metadata and routes to the adapter; the adapter validates typed inputs and handle; the constrained `omarchy-platform` broker validates handle, plan, cache, consent, target IDs, and step; each privileged primitive validates the same live transaction immediately before mutation and writes its postcondition. Generated and copied code must be compiled or invoked through the same broker, and direct leaf sourcing is forbidden.
+```text
+LowerAsciiToken = lowercase ASCII matching ^[a-z0-9][a-z0-9._:-]{0,127}$
+FullCommitId = 40 lowercase hexadecimal characters
+ArtifactId = ASCII matching `^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$` or UUID; comparison is case-sensitive
+ProjectId = LowerAsciiToken
+RepositoryId = LowerAsciiToken
+SliceId = LowerAsciiToken
+BoardId = LowerAsciiToken
+ActorId = LowerAsciiToken
+AccountId = LowerAsciiToken
+PolicyId = LowerAsciiToken
+KeyId = LowerAsciiToken
+SchemaId = LowerAsciiToken
+JsonPointer = RFC6901 pointer with UTF-8 tokens and no unescaped NUL
+JsonPath = canonical `$`-rooted path with dot member tokens and bracketed decimal array indices
+RelativeRepoPath = UTF-8 relative path with no leading slash, empty component, dot component, or .. component
+RelativeBindingPath = RelativeRepoPath with no symlink component; the generated-output root is lock-declared
+PathToken = RelativeRepoPath with no wildcard, variable, URL scheme, or shell metacharacter
+SafeDescription = UTF-8 string of 1 through 256 bytes with no NUL or control character
+SourceText = UTF-8 string of 1 through 4,096 bytes with no NUL
+PreimageId = ArtifactId
+SourcePointer = {path: RelativeRepoPath, line: uint64, column: uint64, selector: JsonPointer or null}
+Status = 0 or 2 or 3 or 4 or 5 or 7 or 8 or 9
+SlotId = "slot-a" or "slot-b" or "recovery"
+Signature = {key_id: KeyId, signer_role: LowerAsciiToken, algorithm: "Ed25519",
+             signature_format: "ed25519-raw-v1", signature: B64URL_NO_PAD_64_BYTES}
+RejectionTuple = {code: ErrorCode, path: JsonPath or LowerAsciiToken, phase: Phase,
+                  process_status: Status, decision: Decision, message_id: LowerAsciiToken}
+RouteResult = {route_id: LowerAsciiToken, node_ids: ExactList<LowerAsciiToken, node_id>,
+               edge_ids: ExactList<LowerAsciiToken, edge_id>, observed_result: ErrorCode or ResultCode,
+               source_digest: Digest, acceptance_artifact_digest: Digest}
+CapabilityResult = {capability_id: LowerAsciiToken, required: true or false,
+                    observed: true or false, code: ErrorCode or ResultCode,
+                    evidence_digest: Digest}
+ResidualStatus = "DESIGN_ONLY" or "HELD" or "NOT_IMPLEMENTED" or "NOT_PRESENT"
+                 or "TOOLING_BLOCK" or "UNSAFE_BASELINE" or "IMPLEMENTED_AND_VERIFIED"
+ResidualRef = {residual_id: LowerAsciiToken, status: ResidualStatus,
+               acceptance_artifact_digest: Digest, owner: LowerAsciiToken, due_before_gate: LowerAsciiToken}
+ResidualScope = ExactScope or all-product-routes or all-mutators or all-payload-consumers
+                or P01-and-P05 or install-and-update or promotion-terminal or diagnostics-and-promotion
+                or I03-I04 or I04-P05-I09 or I08-P04-I04 or all-seams or P01-P05-integration
+                or qualification-and-release or merge-and-promotion
+HandoffScope = "P03/parity" or "P05/update-evidence" or "F06/compliance"
+               or "F07/promotion"
+TargetIdentity = {target_id: StableId, target_kind: "disk" or "partition" or "container" or "volume",
+                  board_id: BoardId, disk_id: StableId, volume_id: StableId or null,
+                  layout_digest: Digest, topology_digest: Digest, mount_generation: uint64}
+```
 
-Root/raw writes remain an implementation residual. Bash cannot prove that a root actor outside the broker is physically incapable of writing a system path, so the design never claims that impossibility. The supported product graph must nevertheless reject every listed route and fixture before mutation, and CI must prove each primitive guard by planting the violation and observing the exact terminal result.
+`board-registry/v1` has exact capability vocabulary `cpu-topology`, `memory`, `internal-display`, `backlight`, `external-display`, `gpu`, `media`, `audio`, `camera`, `keyboard`, `trackpad`, `touch-id-sep`, `wifi`, `bluetooth`, `usb`, `thunderbolt`, `nvme`, `sd`, `ethernet`, `charging-battery`, `thermal-fan`, `suspend-resume`, `virtualization`, `recovery`. A board contains exact `board_id`, `identity_match`, `soc`, `firmware`, `physical_capabilities`, `lifecycle`, `qualification_profile`, `install_policy`, and `labels`; labels never authorize identity. A chip family, architecture token, DMI string, PCI ID, GPU vendor, or one compatible token is diagnostic only.
 
-| Fixture ID | Hostile form | Expected code/path/phase/process status/result |
+`platform-manifest/v1` has exact component paths `components.linux_kernel`, `components.dtb_set`, `components.firmware_bundle`, `components.mesa_stack`, and `components.boot_stack`, mapping respectively to `linux-kernel`, `dtb-set`, `firmware-bundle`, `mesa-stack`, and `boot-stack`. Its signed projections `artifacts`, `package_set`, `compatibility`, `firmware_schema`, and `rollback` must equal the sorted exact union derived from the component tree. There is no top-level winner, merge, or fallback.
+
+`installer-plan/v1` uses typed stable identities, never a raw disk path, URL, glob, environment expression, or user-provided device name. Each mutation is exactly `sequence`, `step_id`, `operation`, `target_refs`, `preconditions`, `expected_effect`, `rollback_boundary`, and `owner_summary`; each target must match the read-only inventory tuple before every step.
+
+`qualification-record/v1` requires explicit board, manifest, profile, test, evidence, operator, lab, outcome, and residual bindings. A required test is pass only when its profile says required, its measurements and evidence pass, all evidence digests verify, and every residual is explicitly non-blocking under the ratified policy. Static checks, a VM, mocked hardware, recognized chip text, or successful desktop boot do not satisfy physical evidence.
+
+`boot-health/v1` and `boot-success-mark/v1` use the exact F-02 lineage and counter rules in section 3. `dtb-mutation-envelope/v1` binds board, source, manifest, pre- and post-DTB digests, policy, tool, artifact, firmware, DT schema, source generation, ordered mutation set, signer authority, nonce, and replay identity; I-04 consumes it opaquely and product code never edits or selects a mutation.
+
+## 5. Canonical bytes, digest, handle, and error registries
+
+The byte grammar is explicit. `NUL` means exactly one byte `0x00`, never the two characters backslash and zero. `ASCII(s)` encodes the listed ASCII string without a terminator. `UTF8(s)` encodes Unicode as UTF-8 without a BOM. `JCS(o)` is RFC 8785 JSON Canonicalization Scheme with no trailing newline. `B64URL_NO_PAD(b)` is RFC 4648 base64url of bytes `b` with all `=` padding removed. Duplicate JSON names are rejected before JCS. Object member order on the wire is JCS order; collection order is the declared exact order or the named stable-key sort. No implementation may infer an omitted field, normalize duplicate keys, or choose a different digest preimage.
+
+```text
+FRAME(label, parts...) = ASCII(label) || NUL || parts joined by NUL
+F02_PAYLOAD_DIGEST(P) = SHA256(JCS(P))
+HANDOFF_PAYLOAD_BODY(P) = P; the four handoff payload schemas contain no
+  `payload_digest`, `content_digest`, or `acceptance_artifact_digest` member
+P01_HANDOFF_PAYLOAD_DIGEST(H, P) = SHA256(FRAME("omarchy.payload.v1", UTF8(H.artifact_id), UTF8(H.document_id), JCS(HANDOFF_PAYLOAD_BODY(P))))
+HANDOFF_CONTENT_BODY(E) = E with `payload_digest`, `content_digest`, and `acceptance_artifact_digest` omitted
+CONTENT_DIGEST(E) = SHA256(FRAME("omarchy.content.v1", UTF8(E.document_id), JCS(HANDOFF_CONTENT_BODY(E))))
+AUTH_PREIMAGE(E, S) = ASCII("omarchy-auth-preimage/v1") || NUL || JCS({
+  envelope_format: E.format, signature_format: S.signature_format,
+  key_id: S.key_id, signer_role: S.signer_role, algorithm: S.algorithm,
+  domain: E.domain, context: E.context, payload_type: E.payload_type,
+  payload_version: E.payload_version, schema_set_digest: E.schema_set_digest,
+  payload_digest: F02_PAYLOAD_DIGEST(E.payload), anti_transplant: {
+    document_id: E.payload.document_id, schema: E.payload.schema,
+    payload_type: E.payload_type, payload_version: E.payload_version,
+    schema_set_digest: E.schema_set_digest, domain: E.domain, context: E.context
+  }, payload: E.payload
+})
+PLAN_BODY(P) = the exact canonical `installer-plan/v1` payload object; it contains no
+  `plan_digest`, approval, authorization, or signature member
+PLAN_DIGEST(P) = SHA256(FRAME("omarchy-plan-body/v1", JCS(PLAN_BODY(P))))
+CORE_BODY(C) = C with exactly `payload_digest` omitted; no other member is omitted
+CORE_DIGEST(C) = SHA256(FRAME("omarchy-boot-health-core/v1", JCS(CORE_BODY(C))))
+MARK_BODY(M) = M with exactly `payload_digest` omitted; no other member is omitted
+MARK_DIGEST(M) = SHA256(FRAME("omarchy-boot-success-mark/v1", JCS(MARK_BODY(M))))
+```
+
+The `FRAME` definition is normative: each component is encoded exactly once in the displayed order, with one `0x00` separator and no final separator. `F02_PAYLOAD_DIGEST` is the exact F-02 digest for an authenticated payload. `P01_HANDOFF_PAYLOAD_DIGEST` is used only for a handoff envelope `H` and its payload `P`, and binds both the envelope artifact ID and document ID. `CONTENT_DIGEST` binds the handoff document ID and the exact handoff envelope body with the three named digest fields omitted; it is therefore not self-referential. The named omission sets are closed. Adding a digest to its own preimage returns the domain cycle code; deleting a required field returns a parse code. A digest field never authenticates itself.
+
+The canonical product identities are:
+
+```text
+ADMISSION_IDENTITY = {
+  operation: ProductOperation, scope: ProductScope, route_id: LowerAsciiToken,
+  target: TargetIdentity, registry_ref: PayloadRef, manifest_ref: PayloadRef,
+  plan_ref: InstallerPlanRef, qualification_provenance: ExactList<QualificationRef, qualification_record_id>,
+  boot_ref: BootIdentity, dtb_ref: DtbIdentity, schema_set_digest: Digest,
+  binding_identity: BindingIdentity, authority_context_digest: Digest
+}
+identity_digest = SHA256(FRAME("P01.AdmissionIdentity/v2", JCS(ADMISSION_IDENTITY)))
+
+RESULT_BODY = {
+  result_schema: "P01.AdmissionResult/v2", adapter_identity: LowerAsciiToken,
+  decision: Decision, code: ErrorCode or ResultCode, path: JsonPath or LowerAsciiToken,
+  phase: Phase, process_status: Status,
+  operation: ProductOperation, scope: ProductScope, route_id: LowerAsciiToken,
+  transaction_id: UUID or null, handle: HANDLE_BODY or null, rejection: RejectionTuple or null,
+  admission_identity: ADMISSION_IDENTITY or null, artifact_refs: ExactList<PayloadRef, payload_type>,
+  freshness: Freshness or null, journal_ref: JournalRef or null,
+  completed_steps: ExactList<StepRef, step_id>, rollback_state: RollbackState,
+  next_action: LowerAsciiToken or null
+}
+result_without_admission_result_digest_and_handle_mac = RESULT_BODY with `handle` equal to HANDLE_BODY
+admission_result_digest = SHA256(FRAME("P01.AdmissionResult/v2", JCS(result_without_admission_result_digest_and_handle_mac)))
+
+HANDLE_BODY = {
+  handle_schema: "P01.AdmissionHandle/v2", transaction_id: UUID, identity_digest: Digest,
+  plan_digest: Digest, operation: ProductOperation, scope: ProductScope, route_id: LowerAsciiToken,
+  issued_at: Timestamp, expires_at: Timestamp, nonce: Nonce,
+  mac_algorithm: "HMAC-SHA-256", mac_key_id: LowerAsciiToken
+}
+handle_mac = HMAC-SHA256(key[mac_key_id],
+  FRAME("P01.AdmissionHandle/v2.mac", JCS(HANDLE_BODY)))
+handle = "omarchy-admit:v2:" || B64URL_NO_PAD(JCS(HANDLE_BODY || {mac: handle_mac}))
+
+TRANSACTION_BODY = {
+  transaction_id: UUID, admission_identity_digest: Digest, operation: ProductOperation, scope: ProductScope,
+  route_id: LowerAsciiToken,
+  plan_digest: Digest, mutation_list_digest: Digest,
+  target_snapshot_digest: Digest, cache_set_digest: Digest, final_consent_digest: Digest,
+  qualification_provenance: ExactList<QualificationRef, qualification_record_id>, boot_lineage: BootLineage,
+  source_generation: uint64, created_at: Timestamp
+}
+transaction_identity_digest = SHA256(FRAME("P01.Transaction/v1", JCS(TRANSACTION_BODY)))
+FinalConsent_without_consent_digest = FinalConsent with exactly `consent_digest` omitted
+CacheSet_without_set_digest = CacheSet with exactly `set_digest` omitted
+CapacityReservation_without_reservation_digest = CapacityReservation with exactly `reservation_digest` omitted
+JournalEvent_without_event_digest = JournalEvent with exactly `event_digest` omitted
+Tombstone_without_tombstone_digest = Tombstone with exactly `tombstone_digest` omitted
+consent_digest = SHA256(FRAME("P01.FinalConsent/v1", JCS(FinalConsent_without_consent_digest)))
+cache_set_digest = SHA256(FRAME("P01.VerifiedCacheSet/v1", JCS(CacheSet_without_set_digest)))
+capacity_reservation_digest = SHA256(FRAME("P01.CapacityReservation/v1", JCS(CapacityReservation_without_reservation_digest)))
+journal_event_digest = SHA256(FRAME("P01.JournalEvent/v1", JCS(JournalEvent_without_event_digest)))
+tombstone_digest = SHA256(FRAME("P01.TransactionTombstone/v1", JCS(Tombstone_without_tombstone_digest)))
+Freshness = {verified_clock_id: LowerAsciiToken, source_generation: uint64,
+             issued_at: Timestamp, expires_at: Timestamp, replay_id: UUID}
+JournalRef = {journal_id: UUID, chain_digest: Digest, state: StateId, sequence: uint64}
+StepRef = {step_id: LowerAsciiToken, primitive_id: LowerAsciiToken,
+           target_ids: ExactList<StableId, stable_id>, postcondition_digest: Digest}
+RollbackState = {allowed: true or false, depth: 0 or 1, predecessor_digest: Digest or null,
+                 action_digest: Digest or null}
+```
+
+The handle has a broker-custodied HMAC-SHA-256 key identified by `mac_key_id`, a 32-byte MAC encoded as 43 unpadded base64url characters, a 16-byte nonce, lowercase UUID transaction ID, and a maximum 15-minute lifetime. The F-03 receipt must ratify custody, current and previous key rotation, revocation, and expiry behavior before implementation. A handle is issued only for `decision=admitted`, never for a hold, reject, abort, quarantine, or missing dependency. A caller cannot supply a handle, key, nonce, transaction ID, expiry, or identity field to the verifier.
+
+### 5.1 Deterministic validation and simultaneous-fault precedence
+
+The first failure is determined before any later phase is inspected. Within a phase, the fixed `phase_order` below is followed; within a collection, the first affected JSON pointer in canonical array order wins. The shape suborder is invalid UTF-8, duplicate name, unknown field, required field, then resource bound; the canonical suborder is number, JCS bytes, plan digest cycle, boot-core digest cycle, then marker digest cycle. The dependency receipt is a required typed slot whose `unratified` status is a dependency fault; deleting the slot is a shape fault. There is no source timing, hash-map order, warning aggregation, or “most severe” selection.
+
+```text
+phase_order = [
+  transport, shape, canonical, parse, bootstrap, dependency, trust, freshness,
+  identity, cross_document, authorize, consent, preflight, reserve, execution,
+  postcondition, recover, privacy, accessibility, promotion, close
+]
+```
+
+| Simultaneous faults | First result | Why |
 | --- | --- | --- |
-| `FIX-01` | direct `pacman` or package primitive without handle | `HANDLE_INVALID` / `admission.check` / `verify` / 8 / `reject`, no package mutation |
-| `FIX-02` | routed public package command with forged or closed handle | `HANDLE_INVALID` / `admission.check` / `verify` / 8 / `reject`, no package mutation |
-| `FIX-03` | copied install or sourced leaf with environment-only handle | `FORBIDDEN_ROUTE` / `route.authorize` / `authorize` / 2 / `reject`, no leaf mutation |
-| `FIX-04` | generated wrapper that bypasses the declared broker | `FORBIDDEN_ROUTE` / `route.authorize` / `authorize` / 2 / `reject`, no broker call |
-| `FIX-05` | dynamic `eval`, `source` of adapter output, `bash -c` consumer, or unquoted result dispatch | `FORBIDDEN_ROUTE` / `route.authorize` / `authorize` / 2 / `reject`, no child process |
-| `FIX-06` | raw network fetch or pipe-to-shell upgrade | `FORBIDDEN_ROUTE` / `route.authorize` / `authorize` / 2 / `reject`, no network or mutation |
-| `FIX-07` | raw package lookup/install before consent or required-package filtering | `CONSENT_MISSING` / `executor.consent` / `consent` / 4 / `hold`, no package action |
-| `FIX-08` | raw firmware/EFI write or unmanifested firmware update | `FORBIDDEN_ROUTE` / `route.authorize` / `authorize` / 2 / `reject`, no firmware action |
-| `FIX-09` | missing `OMARCHY_PATH` or attempted fallback to a packaged path | `OMARCHY_PATH_MISSING` / `route.bootstrap` / `bootstrap` / 2 / `reject`, no fallback read |
-| `FIX-10` | `refresh-config` with `../`, absolute caller path, symlink, or target escape | `PATH_TRAVERSAL` / `route.parse` / `parse` / 2 / `reject`, no read or write |
-| `FIX-11` | arbitrary upgrade `--ref`, dev channel, or stable-to-dev route | `FORBIDDEN_ROUTE` / `route.authorize` / `authorize` / 2 / `reject`, no checkout or channel mutation |
-| `FIX-12` | unknown board identity | `TRUST_FAILURE` / `admission.verify` / `verify` / 3 / `reject`, no identity or handle |
-| `FIX-13` | ambiguous board identity | `TRUST_FAILURE` / `admission.verify` / `verify` / 3 / `reject`, no identity or handle |
-| `FIX-14` | cross-board or cross-manifest payload transplant | `BINDING_MISMATCH` / `admission.verify` / `verify` / 3 / `reject`, no handle |
-| `FIX-15` | stale or unqualified qualification record | `QUALIFICATION_NOT_BOUND` / `admission.identity` / `identity` / 3 / `reject`, no handle |
-| `FIX-16` | forged or embedded boot-success mark | `BOOT_TUPLE_MISMATCH` / `boot.evaluate` / `verify` / 3 / `reject`, no success result |
-| `FIX-17` | reset, decrement, gap, or duplicate boot counter | `BOOT_TUPLE_MISMATCH` / `boot.evaluate` / `verify` / 3 / `reject`, no success result |
-| `FIX-18` | changed target ID immediately before an irreversible step | `TARGET_REVALIDATION_FAILED` / `executor.verify` / `verify` / 3 / `reject`, journal preserved |
-| `FIX-19` | missing or expired content-addressed cache entry | `CACHE_MISS` / `executor.preflight` / `preflight` / 4 / `hold`, no network or mutation |
-| `FIX-20` | power loss or process loss during an open transaction | `POWER_LOSS_INTERRUPTED` / `recovery.resume` / `recover` / 4 / `hold`, resume/rollback/abort required |
-| `FIX-21` | support bundle containing a field outside the redaction allowlist | `SUPPORT_BUNDLE_REDACTION_FAILED` / `diagnostics.export` / `privacy` / 3 / `reject`, no persistence or upload |
+| invalid UTF-8 plus any other fault | `PARSE_SCHEMA_FAILURE` at `transport.invalid_utf8` | invalid bytes are the first transport check |
+| duplicate JSON name plus any other fault | `DUPLICATE_SEMANTIC_KEY` at `transport.duplicate_name` | duplicate names are checked after UTF-8 and before dependency inspection |
+| unknown field plus missing required field, dependency hold, or later fault | `UNKNOWN_FIELD` at `P1.unknown_field` | unknown fields are checked before required fields and ratification |
+| missing required field plus dependency hold or later fault | `PARSE_SCHEMA_FAILURE` at `P1.required_field` | required shape is checked before ratification |
+| noncanonical number plus digest cycle or dependency hold | `CANONICALIZATION_FAILURE` at `P2.number` | numeric canonicalization precedes digest construction |
+| plan digest cycle plus dependency hold or later fault | `PLAN_DIGEST_CYCLE` at `$.payload.plan_digest` | the named plan domain cycle is checked before ratification |
+| boot-core digest cycle plus marker digest cycle, dependency hold, or later fault | `BOOT_DIGEST_CYCLE` at the first boot-core cycle pointer | boot-core canonical digest is checked before marker canonical digest and ratification |
+| marker digest cycle plus dependency hold or later fault | `BOOT_MARKER_DIGEST_CYCLE` at the first marker cycle pointer | marker canonical digest is checked before ratification |
+| missing or unratified dependency plus stale clock, cache miss, or target mismatch | `DEPENDENCY_UNRATIFIED` at `dependency.check` | ratification is before later trust, identity, and execution checks |
+| stale or replayed clock plus target mismatch or cache miss | `EXPIRY_OR_REPLAY_FAILURE` at `admission.freshness` | freshness is before identity and execution |
+| target mismatch plus cache miss or missing consent | `TARGET_ID_MISMATCH` at `admission.identity` | local identity is before executor preflight |
+| cache substitution plus cache miss | `CACHE_SUBSTITUTION` at `executor.preflight` | the first mismatched entry is more specific than absent set |
+| missing final consent plus disk full or post-consent network | `CONSENT_MISSING` at `executor.consent` | consent precedes reservation and capacity execution |
+| capacity failure plus journal write failure | `JOURNAL_FAILURE` at `executor.reserve` | no capacity decision is durable without a journal |
+| changed target plus step failure | `TARGET_REVALIDATION_FAILED` at `executor.verify` | target guard is immediately before the primitive |
+| stale health plus a forged success marker | `BOOT_MARKER_AUTH_FAILURE` at `boot.evaluate` | marker authentication precedes cross-result evaluation |
+| duplicate transaction with identical terminal identity and terminal state `committed` | `ALREADY_APPLIED` at `executor.idempotence` | idempotence is allowed only for byte-equal committed identity |
+| duplicate transaction with identical terminal identity and terminal state `rolled_back` | `ROLLED_BACK` at `recovery.close` | a byte-equal rollback result is replayed without mutation |
+| duplicate transaction with identical terminal identity and terminal state `closed` | `CLOSED` at `executor.close` | closed journal identity is replayed without mutation |
+| duplicate transaction with identical terminal identity and terminal state `aborted` | `ABORTED` at `recovery.close` | an abort result is replayed without mutation |
+| duplicate transaction with a different identity and a live or closed ID | `DUPLICATE_TRANSACTION` at `executor.idempotence` | no transaction ID is rebound |
+| duplicate transaction with a tombstoned ID | `TRANSACTION_TOMBSTONED` at `recovery.dispatch` | tombstones are never reopened |
+| unknown recovery event plus any requested recovery action | `UNKNOWN_EVENT` and quarantine | no action is inferred from an unknown event |
 
-The expected fixture results are design requirements only. `bin/omarchy-admission`, `omarchy-platform`, schemas, bindings, and fixtures are absent in this slice, so none of these 21 fixtures is executable or a PASS. A missing executable produces `NOT IMPLEMENTED`, never a fabricated typed rejection.
+F-02 error distinctions are preserved. `UNKNOWN_FIELD`, `DUPLICATE_SEMANTIC_KEY`, `CANONICALIZATION_FAILURE`, `SIGNATURE_CONTEXT_MISMATCH`, `TRUST_BOUNDARY_FAILURE`, `BOOT_CONTEXT_MISMATCH`, `BOOT_COUNTER_FAILURE`, `BOOT_REQUIRED_CHECK_FAILURE`, and `BOOT_MARKER_AUTH_FAILURE` are never collapsed into generic success, warning, or one product `TRUST_FAILURE` code. A product projection carries the exact upstream code, path, phase, and redacted fixed message.
 
-## 13. Absent implementation and evidence residuals
+### 5.2 Closed result and error registries
 
-Each absent artifact is tracked separately. Acceptance requires the named immutable artifact and its digest, not a claim that a future file exists. The due-before gate is the first gate allowed to consume it; while absent, the listed fail-closed effect applies.
+The result registry is separate from the error registry. Every result or error selects exactly one row. Status 0 is permitted only for a verified positive result; status 4 is hold or user abort; status 3 is reject; status 8 is invalid handle; status 9 is quarantined. Unknown code, path, phase, state, or result is `UNKNOWN_EVENT` with status 9.
 
-| Residual ID | Absent artifact | Owner | Consumer | Acceptance artifact and digest | Due before | Fail-closed effect |
-| --- | --- | --- | --- | --- | --- | --- |
-| `RES-01` | admission command `bin/omarchy-admission` | omarchy-mac P-01/P-02 | all product routes | executable at immutable commit plus `P01.AdmissionGateReceipt/v1` content digest and hostile-fixture receipt | P-01 | no admission, handle, or typed route result; `NOT IMPLEMENTED` |
-| `RES-02` | platform backend and constrained `omarchy-platform` broker | I-04 installer/recovery owner | P-05 and every privileged primitive | `P01.ExecutorResult/v1` conformance artifact plus broker binary/source commit and content digest | P-05 | no network/package/config/APFS/firmware mutation is authorized |
-| `RES-03` | canonical schemas and schema-set lock | F-02 owner | generated verifier and all payload consumers | ratification receipt with canonical commit, schema-set digest, preimage, and owner decision-log digest | P-01 | `DEPENDENCY_UNRATIFIED` before parse or handle |
-| `RES-04` | generated bindings and output lock | F-02/F-03 owners | adapter, executor, boot evaluator | generated binding identity and output-lock digest plus conformance receipt | P-01 | `DEPENDENCY_UNRATIFIED` before binding load |
-| `RES-05` | hostile fixture corpus | omarchy-mac P-02 and CI owner | route/broker/primitive gates | 21 fixture files, expected result manifest, and corpus digest | P-02 | missing executable/fixture is `NOT IMPLEMENTED`, never PASS |
-| `RES-06` | product-specific CI workflow | omarchy-mac CI owner | P-01 through P-05 and branch protection | immutable workflow commit plus run receipt covering route manifest, bindings, fixtures, privacy, recovery, and generated drift | P-01 integration | no design rule is treated as enforced; integration blocked |
-| `RES-07` | generated P-03 parity artifact | P-03 owner | F-06/F-07 and coordinator | `P03.PARITY-CENSUS.V1` document ID and content/payload digests bound to candidate/manifest/qualification | P-03 | F-07 intake rejects; no parity claim |
-| `RES-08` | P-05/F-07 update evidence artifact | P-05 owner and F-07 owner | F-07 promotion terminal | `P05.UPDATE-EVIDENCE.V1` and `F07.PROMOTION-EVIDENCE.V1` receipts with exact digest preimages | P-05 and F-07 | `PROMOTION_INTAKE_INVALID` or `DEPENDENCY_UNRATIFIED`; no promotion |
-| `RES-09` | qualification records for exact board/profile/candidate | Q-00/Q-01/Q-02 owners | P-01, P-03, P-05, F-07 | `qualification-record/v1` records and evidence receipt digests bound to board, candidate, manifest, and test run | P-01 identity admission | no `qualified` result; `QUALIFICATION_NOT_BOUND` |
-| `RES-10` | physical evidence for clean install, boot, hardware, update, interruption, rollback, and recovery | coordinator-owned lab and Q owners | P-05, I-09, F-07 | signed board/profile evidence bundle with exact manifest, transaction, health, lineage, and test digests | physical qualification and release | no support, compatibility, or release claim; status `NOT PRESENT` |
-| `RES-11` | branch protection and required checks for the integration/release path | repository owner/coordinator | F-07 and merge gate | live repository protection configuration and immutable required-check receipt | before merge or release | no integration or release; draft remains blocked |
+| Result ID | Code | Path | Phase | Status | Decision and terminal meaning |
+| --- | --- | --- | --- | --- | --- |
+| `RESULT-01` | `ADMITTED` | `admission.open` | `identity` | 0 | `admitted`; handle issued, no mutation yet |
+| `RESULT-02` | `VALID` | `admission.check` | `verify` | 0 | `valid`; handle and live journal still required for a step |
+| `RESULT-03` | `ALREADY_APPLIED` | `executor.idempotence` | `close` | 0 | `already_applied`; exact terminal transaction already succeeded |
+| `RESULT-04` | `CLOSED` | `executor.close` | `close` | 0 | `closed`; journal and evidence closure verified |
+| `RESULT-05` | `ROLLED_BACK` | `recovery.close` | `recover` | 0 | `rolled_back`; predecessor verified and closure pending or complete |
+| `RESULT-06` | `ABORTED` | `recovery.close` | `recover` | 4 | `aborted`; no resume or mutation permitted |
+| `RESULT-07` | `QUARANTINED` | `recovery.close` | `terminal` | 9 | `quarantined`; no mutation, human evidence only |
+| `RESULT-08` | `CAPABILITY_VALID` | `capability.check` | `verify` | 0 | `valid`; capability observed and bound to the required manifest |
+| `RESULT-09` | `OPTIONAL_CAPABILITY_UNAVAILABLE` | `capability.check` | `verify` | 0 | `valid`; optional capability unavailable with an explicit typed gap |
+| `RESULT-10` | `NOT_APPLICABLE` | `capability.check` | `verify` | 0 | `valid`; operation/scope matrix marks the capability not applicable |
 
-## 14. Existing baseline failures, tracked separately
+| Error code | Path | Phase | Status | Decision and side effect |
+| --- | --- | --- | --- | --- |
+| `ADMISSION_USAGE` | `route.parse` | `parse` | 2 | reject, no read or write |
+| `PATH_TRAVERSAL` | `route.parse` | `parse` | 2 | reject, no target read or write |
+| `FORBIDDEN_ROUTE` | `route.authorize` | `authorize` | 2 | reject, no adapter, broker, child, or network call |
+| `OMARCHY_PATH_MISSING` | `route.bootstrap` | `bootstrap` | 2 | reject, no fallback path |
+| `PARSE_SCHEMA_FAILURE` | first malformed field | `shape` | 3 | reject, no trusted value |
+| `UNKNOWN_FIELD` | first unknown field | `shape` | 3 | reject, no trusted value |
+| `DUPLICATE_SEMANTIC_KEY` | second duplicate name or key | `shape` | 3 | reject, no deduplication |
+| `RESOURCE_LIMIT` | first over-bound value | `shape` | 3 | reject, no truncation |
+| `CANONICALIZATION_FAILURE` | first canonical byte mismatch | `canonical` | 3 | reject, no digest or signature check |
+| `PLAN_DIGEST_CYCLE` | `$.payload.plan_digest` | `canonical` | 3 | reject, plan not admitted |
+| `BOOT_DIGEST_CYCLE` | first forbidden boot self-digest | `canonical` | 3 | reject, no boot result |
+| `BOOT_MARKER_DIGEST_CYCLE` | `$.payload.canonical_payload_digest` | `canonical` | 3 | reject, no marker result |
+| `DEPENDENCY_UNRATIFIED` | `dependency.check` | `dependency` | 4 | hold, no handle, mutation, promotion, or fallback |
+| `BINDING_INTEGRITY_FAILURE` | first lock or capability mismatch | `verify` | 3 | reject, no generated binding use |
+| `REQUIRED_CAPABILITY_UNAVAILABLE` | first missing required capability | `capability.check` | 3 | reject, no install or update success |
+| `CAPABILITY_RESULT_INCOMPLETE` | required/optional outcome set | `capability.check` | 3 | reject, no partial capability result |
+| `HANDLE_INVALID` | handle envelope, MAC, or live journal identity | `admission.check` | 8 | reject, no mutation |
+| `SIGNATURE_CONTEXT_MISMATCH` | first domain, context, type, or role mismatch | `verify` | 3 | reject, no trusted value |
+| `TRUST_FAILURE` | first authority or proof failure | `verify` | 3 | reject, no trusted value |
+| `TRUST_BOUNDARY_FAILURE` | first local untrusted record field | `trust` | 4 | hold, no trusted value |
+| `EXPIRY_OR_REPLAY_FAILURE` | first stale, expired, or replay field | `freshness` | 3 | reject, replay reservation unchanged |
+| `OWNER_PROOF_VERIFICATION_FAILURE` | owner proof source | `verify` | 3 | reject, no owner context |
+| `OWNER_PROOF_INVALID` | owner receipt identity | `identity` | 3 | reject, no handle |
+| `IDENTITY_INCOMPLETE` | missing required identity or applicability field | `identity` | 3 | reject, no handle |
+| `TARGET_ACCOUNT_INVALID` | target account binding | `identity` | 3 | reject, no handle |
+| `TARGET_ID_MISMATCH` | first target identity | `identity` | 3 | reject, no handle or mutation |
+| `PLAN_MISMATCH` | first plan or mutation identity | `identity` | 3 | reject, no handle |
+| `QUALIFICATION_NOT_BOUND` | qualification board, profile, candidate, or evidence | `identity` | 3 | reject, no qualified result |
+| `DTB_DECISION_MISSING` | `$.dtb_identity` | `handoff` | 3 | reject, no DTB action |
+| `CROSS_DOCUMENT_MISMATCH` | first unequal bound field | `cross_document` | 3 | reject, no executor handoff |
+| `BOOT_CONTEXT_MISMATCH` | first record, context, health, or marker tuple field | `boot.evaluate` | 4 | hold, no success or promotion result |
+| `BOOT_COUNTER_FAILURE` | counter, generation, or atomic record path | `boot.lineage` | 4 | hold or recovery, no reset or wrap |
+| `BOOT_REQUIRED_CHECK_FAILURE` | profile, check, measurement, or evidence | `boot.evaluate` | 4 | hold or recovery, no success |
+| `BOOT_MARKER_AUTH_FAILURE` | marker signature, role, core digest, or replay | `boot.evaluate` | 4 | hold or recovery, no success |
+| `BOOT_FALLBACK_FAILURE` | rollback set or predecessor | `boot.evaluate` | 4 | hold or quarantine, no promotion |
+| `PRIVILEGE_MISMATCH` | route privilege context | `authorize` | 5 | reject, no broker call |
+| `CONSENT_MISSING` | final consent record | `executor.consent` | 4 | hold, no reservation or mutation |
+| `CONSENT_REPLAY` | consent nonce or transaction | `executor.consent` | 3 | reject, no mutation |
+| `CACHE_MISS` | missing required cache entry | `executor.preflight` | 4 | hold, no network or mutation |
+| `CACHE_SUBSTITUTION` | cache entry digest, size, or binding | `executor.preflight` | 3 | reject, no network or mutation |
+| `CAPACITY_INSUFFICIENT` | capacity or reservation arithmetic | `executor.reserve` | 4 | hold, no mutation |
+| `JOURNAL_FAILURE` | journal header, chain, or durable write | `executor.reserve` | 7 | reject, no irreversible step |
+| `DUPLICATE_TRANSACTION` | transaction identity | `executor.idempotence` | 3 | reject, no rebinding |
+| `TRANSACTION_TOMBSTONED` | tombstone identity | `recovery.dispatch` | 3 | reject, no resume or rollback |
+| `TARGET_REVALIDATION_FAILED` | target immediately before primitive | `executor.verify` | 3 | reject, journal preserved, recovery required |
+| `STEP_POSTCONDITION_FAILED` | postcondition digest | `executor.verify` | 3 | reject, recovery required |
+| `POWER_LOSS_INTERRUPTED` | interruption boundary | `recovery.resume` | 4 | hold, explicit resume, rollback, or abort |
+| `RECOVERY_TERMINAL` | rollback or recovery terminal boundary | `recovery.dispatch` | 9 | quarantine and tombstone |
+| `RECOVERY_RECURSION` | rollback depth | `recovery.dispatch` | 9 | quarantine and tombstone |
+| `UNKNOWN_EVENT` | first unknown event or transition | `recovery.dispatch` | 9 | quarantine and tombstone, no inferred action |
+| `USER_CANCELLED_BEFORE_CONSENT` | consent boundary | `executor.consent` | 4 | abort, no mutation |
+| `USER_CANCELLED_AFTER_RESERVE` | recovery cancellation | `recovery.cancel` | 4 | abort only after rollback or quarantine |
+| `ACCESSIBILITY_UNAVAILABLE` | UI capability or focus contract | `ux.render` | 4 | hold, no hidden mutation |
+| `ACCESSIBILITY_RECOVERY_FAILED` | post-consent recovery UI | `ux.recovery` | 9 | quarantine, accessible CLI evidence only |
+| `PRIVACY_POLICY_UNRATIFIED` | privacy policy identity | `diagnostics.policy` | 4 | hold upload, local conservative result only |
+| `PRIVACY_FIELD_FORBIDDEN` | first disallowed support field | `diagnostics.redact` | 3 | reject, no persistence |
+| `SUPPORT_BUNDLE_REDACTION_FAILED` | redaction proof | `diagnostics.export` | 3 | reject, no persistence or upload |
+| `LOCAL_BUNDLE_WRITE_FAILURE` | local mode, permission, or capacity | `diagnostics.persist` | 3 | reject, no partial bundle |
+| `UPLOAD_CONSENT_MISSING` | second upload consent | `diagnostics.upload` | 4 | hold, no network |
+| `UPLOAD_TLS_FAILURE` | endpoint or TLS verification | `diagnostics.upload` | 3 | reject, no upload |
+| `UPLOAD_AUDIT_FAILURE` | remote retention or deletion receipt | `diagnostics.upload` | 3 | reject, local bundle retained for user deletion |
+| `RETENTION_POLICY_FAILURE` | retention deadline or policy | `diagnostics.retention` | 3 | reject upload, no policy widening |
+| `DELETION_FAILURE` | local or remote deletion proof | `diagnostics.delete` | 3 | retry up to 3, then quarantine evidence and report failure |
+| `PROMOTION_INTAKE_INVALID` | first F-07 intake mismatch | `promotion.intake` | 3 | reject, F-07 does not write |
 
-These baseline failures are not fixed by this docs-only slice and are not evidence against the contract being described. They block integration and require a later baseline repair/QA slice. No result below is green or inferred green.
+The exact hold-eligible F-02 boot set is `TRUST_BOUNDARY_FAILURE`, `BOOT_CONTEXT_MISMATCH`, `BOOT_COUNTER_FAILURE`, `BOOT_REQUIRED_CHECK_FAILURE`, `BOOT_MARKER_AUTH_FAILURE`, and `BOOT_FALLBACK_FAILURE`. All other errors are rejects unless their result row explicitly says hold or abort. No error message contains input values, secrets, raw paths, serials, signatures, or command output.
 
-| Baseline ID | Command and observed failure | Owner and due-before effect |
+In the error registry, phrases such as `first unknown field` are closed selectors, not emitted paths: the returned `RejectionTuple.path` is the concrete `JsonPointer` selected by the phase and canonical collection order above. Literal paths such as `dependency.check` and `executor.preflight` are emitted unchanged. An implementation that returns the selector text, a stack trace, or an unordered aggregate is non-conforming.
+
+## 6. P-01 admission input, applicability, and output
+
+`P01.AdmissionOpenInput/v2` is a closed adapter record, not an authenticated ninth payload. It has exactly:
+
+```text
+AdmissionOpenInput = {
+  contract_id: "P01.AdmissionOpenInput/v2",
+  operation_scope: {operation: ProductOperation, scope: ProductScope, route_id: LowerAsciiToken},
+  target: TargetObservation,
+  owner_proof_receipt: OwnerProofReceipt or null,
+  target_account: TargetAccount or null,
+  verified_clock: VerifiedClock,
+  payload_refs: ExactList<PayloadRef, payload_type>,
+  plan: InstallerPlanRef or null,
+  qualification_provenance: ExactList<QualificationRef, qualification_record_id>,
+  boot_identity: BootIdentity,
+  dtb_identity: DtbIdentity,
+  authority_context: ExpectedContext or null,
+  replay: {request_id: UUID, request_nonce: Nonce, prior_transaction_id: UUID or null,
+           prior_result_digest: Digest or null, caller_uid: uint32}
+}
+```
+
+The referenced types are closed aliases, not open maps:
+
+```text
+PayloadType = one exact member of PAYLOAD_TYPES
+ErrorCode = one exact code in the error registry
+ResultCode = one exact code in the result registry
+Decision = admitted or hold or reject or valid or already_applied or closed or rolled_back or aborted or quarantined
+Phase = transport or shape or canonical or dependency or verify or trust or freshness or identity
+         or cross_document or authorize or consent or preflight or reserve or apply or close
+         or parse or bootstrap or handoff or idempotence or execution or postcondition
+         or boot.evaluate or boot.lineage or recover or terminal or privacy or accessibility or promotion
+         or admission.check or executor.consent or executor.idempotence or executor.preflight
+         or executor.reserve or executor.verify or recovery.cancel or recovery.dispatch or recovery.resume
+         or ux.render or ux.recovery or diagnostics.policy or diagnostics.redact or diagnostics.export
+         or diagnostics.persist or diagnostics.upload or diagnostics.retention or diagnostics.delete
+         or promotion.intake
+StateId = STATE-01 through STATE-13
+EventId = one exact event name in the transition table
+GuardId = one exact guard name in the route graph artifact
+MutationClass = read-only or package or config or service or firmware or dtb or boot or storage
+                or account or channel or migration or diagnostics or upload or reboot or system
+                or hardware or update or user or all-privileged
+ExactScope = `operation/scope` using one member of `OPERATIONS` and one member of `SCOPES`
+PayloadStatus = "verified" or "not_applicable"
+PayloadRef = {payload_type: PayloadType, document_id: DocumentId, content_digest: Digest,
+              payload_digest: Digest, schema_set_digest: Digest, binding_identity: BindingIdentity,
+              authority_version: Version, issued_at: Timestamp, expires_at: Timestamp,
+              source_generation: uint64, status: PayloadStatus, not_applicable_reason: SafeDescription or null}
+InstallerPlanRef = {document_id: DocumentId, payload_digest: Digest, mutation_list_digest: Digest,
+                    operation: ProductOperation, scope: ProductScope,
+                    target_id: StableId, plan_generation: uint64, predecessor_generation: uint64,
+                    target_generation: uint64, lineage: UUID, expected_counter: uint64,
+                    required_capability_ids: ExactList<LowerAsciiToken, capability_id>}
+QualificationRef = {qualification_record_id: ArtifactId, payload_digest: Digest, content_digest: Digest,
+                    board_id: BoardId, profile_id: LowerAsciiToken, manifest_id: DocumentId,
+                    manifest_digest: Digest, test_run_id: LowerAsciiToken,
+                    outcome: "pass" or "fail" or "held"}
+BootIdentity = {status: "verified" or "not_applicable", board_id: BoardId, manifest_id: DocumentId,
+                manifest_digest: Digest, boot_health_document_id: DocumentId or null,
+                boot_health_payload_digest: Digest or null, boot_success_document_id: DocumentId or null,
+                boot_success_payload_digest: Digest or null, atomic_record_digest: Digest or null,
+                source_generation: uint64 or null, slot_id: SlotId or null,
+                slot_generation: uint64 or null, lineage_id: UUID or null, attempt_counter: uint64 or null,
+                required_checks_digest: Digest or null}
+DtbIdentity = {status: "verified" or "not_applicable", envelope_document_id: DocumentId or null,
+               envelope_payload_digest: Digest or null, envelope_content_digest: Digest or null,
+               decision_digest: Digest or null, board_id: BoardId, manifest_id: DocumentId,
+               target_id: StableId or null, operation: F02Operation or null, mutation_list_digest: Digest or null}
+TargetObservation = {requested_target_id: StableId, observed_target_id: StableId,
+                     target_kind: "disk" or "partition" or "container" or "volume",
+                     board_id: BoardId, soc_id: LowerAsciiToken, device_tree_identity_digest: Digest,
+                     firmware_schema_id: SchemaId, disk_id: StableId, volume_id: StableId or null,
+                     slot_id: SlotId or null, account_id: AccountId or null}
+ExpectedContext = {context_schema: LowerAsciiToken, payload_type: PayloadType, payload_version: Version,
+                   domain: LowerAsciiToken, context: LowerAsciiToken, project_id: ProjectId,
+                   repository_id: RepositoryId, slice_id: SliceId, operation: F02Operation, board_id: BoardId,
+                   manifest_id: DocumentId, manifest_digest: Digest, schema_set_digest: Digest,
+                   target_account_id: AccountId, target_account_binding: Digest,
+                   target_identity_digests: ExactList<Digest, value>, policy_digest: Digest}
+OwnerProofReceipt = {
+  receipt_schema: "owner-proof-receipt/v1", receipt_id: ArtifactId,
+  project_id: ProjectId, repository_id: RepositoryId, slice_id: SliceId,
+  product_operation: ProductOperation, product_scope: ProductScope, operation: F02Operation,
+  actor_id: ActorId, subject_account_id: AccountId, target_account_id: AccountId,
+  plan_digest: Digest, scope_digest: Digest,
+  board_id: BoardId, manifest_id: DocumentId, manifest_digest: Digest,
+  schema_set_digest: Digest, policy_id: PolicyId, policy_digest: Digest,
+  topology_digest: Digest, target_identity_digests: ExactList<Digest, value>,
+  authorization_method: "webauthn/v1" or "oidc-step-up/v1" or "hardware-token/v1",
+  authorization_result: "success", assertion_digest: Digest, evidence_digest: Digest,
+  source_identity: SourceEvidence, valid_from: Timestamp, expires_at: Timestamp,
+  nonce: Nonce, replay_id: UUID, receipt_digest: Digest
+}
+TargetAccount = {
+  account_schema: "target-account/v1", record_id: ArtifactId, account_id: AccountId,
+  project_id: ProjectId, repository_id: RepositoryId, slice_id: SliceId,
+  product_operation: ProductOperation, product_scope: ProductScope,
+  allowed_operations: ExactList<F02Operation, value>, target_identity_digests: ExactList<Digest, value>,
+  board_id: BoardId, manifest_id: DocumentId, manifest_digest: Digest,
+  schema_set_digest: Digest, policy_id: PolicyId, policy_digest: Digest,
+  valid_from: Timestamp, expires_at: Timestamp, nonce: Nonce, replay_id: UUID,
+  account_binding: Digest, record_digest: Digest
+}
+F02Operation = inspect/v1 or write/v1 or replace/v1 or remove/v1 or rollback/v1
+ProductOperation = inspect or install or setup or apply-system or apply-hardware or provision-owner
+                   or provision-user or first-run or update or channel-set or upgrade
+                   or migrate or recover
+ProductScope = platform-system or platform-hardware or platform-update or platform-user
+               or platform-migration or universal-user or read-only
+PRODUCT_TO_F02_OPERATION = {
+  inspect: inspect/v1, recover: rollback/v1,
+  install: write/v1, setup: write/v1, apply-system: write/v1, apply-hardware: write/v1,
+  provision-owner: write/v1, provision-user: write/v1, first-run: write/v1,
+  update: replace/v1, channel-set: replace/v1, upgrade: replace/v1, migrate: write/v1
+}
+StableId = "disk:v1:sha256:" plus 64 lowercase hex or "partition:v1:sha256:" plus 64 lowercase hex
+           or "container:v1:sha256:" plus 64 lowercase hex or "volume:v1:sha256:" plus 64 lowercase hex
+ConstructorIdentity = {constructor_id: LowerAsciiToken, implementation_digest: Digest,
+                       api_version: Version, source_digest: Digest}
+```
+
+`payload_refs` has exactly one entry per `PAY-01` through `PAY-08`, each with `payload_type`, `document_id`, `content_digest`, `payload_digest`, `schema_set_digest`, `binding_identity`, `authority_version`, `issued_at`, `expires_at`, `source_generation`, `status`, and `not_applicable_reason`. Omission is invalid; `not_applicable` is valid only in the operation matrix and must carry a reason. The input has no board assumption, architecture decision, raw URL, arbitrary ref, raw package name, firmware path, success flag, promotion flag, key, role override, target-path override, or dynamic command.
+
+For `read-only`, `owner_proof_receipt`, `target_account`, and `authority_context` are null and no transaction is allocated. For every mutating scope they are required and must be independently verified before a handle is issued. Null is never interpreted as a local default.
+
+The operation and scope sets are closed:
+
+```text
+OPERATIONS = [install, setup, apply-system, apply-hardware, provision-owner,
+              provision-user, first-run, update, channel-set, upgrade,
+              migrate, recover]
+SCOPES = [platform-system, platform-hardware, platform-update,
+          platform-user, platform-migration, universal-user, read-only]
+```
+
+Platform scopes require effective uid 0 and a root-owned journal; `platform-user` and `universal-user` require the non-root journal owner; `read-only` has no handle and no journal. The adapter never escalates. Any operation/scope pair outside the explicit route matrix is `ADMISSION_USAGE`; root opening a user scope or a non-root opening a platform scope is `PRIVILEGE_MISMATCH`.
+
+The payload applicability matrix is closed. `R` means required at admission, `L` means required at a later executor or close boundary, `O` means optional only when the manifest says so, and `N` means explicit not applicable. The order of columns is the order below.
+
+```text
+operation,scope,PAY-01,PAY-02,PAY-03,PAY-04,PAY-05,PAY-06,PAY-07,PAY-08
+inspect,read-only,R,R,N,N,N,N,N,N
+install,platform-system,R,R,R,R,N,R,N,N
+install,platform-hardware,R,R,R,R,N,R,N,R
+setup,platform-system,R,R,R,R,N,R,N,N
+setup,platform-hardware,R,R,R,R,N,R,N,R
+apply-system,platform-system,R,R,R,R,N,R,N,N
+apply-hardware,platform-hardware,R,R,R,R,N,R,N,R
+provision-owner,platform-system,R,R,R,R,N,R,N,N
+provision-user,platform-user,R,R,R,R,N,R,N,N
+first-run,universal-user,R,R,R,O,N,R,N,N
+update,platform-update,R,R,R,R,L,R,L,O
+channel-set,platform-update,R,R,R,R,N,R,N,N
+upgrade,platform-system,R,R,R,R,L,R,L,O
+migrate,platform-migration,R,R,R,R,N,R,N,N
+recover,platform-update,R,R,N,R,L,O,L,O
+```
+
+An operation that needs a payload marked `N` is a schema error; an operation that omits `R` or `L` is `IDENTITY_INCOMPLETE`. `O` cannot be promoted to required or silently omitted after a plan is opened. Qualification provenance is always part of identity when any platform capability is selected, even where the matrix marks the record `O` for a user-only first run.
+
+`P01.AdmissionResult/v2` has exactly `result_schema`, `adapter_identity`, `decision`, `code`, `path`, `phase`, `process_status`, `operation`, `scope`, `route_id`, `transaction_id`, `handle`, `rejection`, `admission_identity`, `artifact_refs`, `freshness`, `journal_ref`, `completed_steps`, `rollback_state`, `next_action`, and `admission_result_digest`. `handle` is null except for `ADMITTED` and `VALID`; transaction and journal IDs are absent whenever the decision terminates before transaction allocation, including route, shape, canonical, dependency, and identity failures. The output is one canonical JSON object and never an authority-bearing payload.
+
+## 7. Typed I-03 and I-04 transaction contract
+
+I-03 and I-04 share one transaction identity. I-03 is pure read-only until final consent. I-04 allocates `transaction_id` exactly once before reserve, writes the journal before any irreversible step, and owns all mutation and recovery. `admission_identity_digest` is copied byte-for-byte from the admitted result into final consent, `TRANSACTION_BODY`, `ExecutorRequest`, and `ExecutorResult`; `transaction_identity_digest` is recomputed from that complete body. A route cannot select a journal path or transaction ID.
+
+```text
+TargetSnapshot = {
+  snapshot_schema: "target-snapshot/v1",
+  snapshot_id: UUID,
+  target_ids: ExactList<StableId, stable_id>,
+  topology_digest: Digest,
+  topology_generation: uint64,
+  layout_digest: Digest,
+  disk_kind: "apfs" or "gpt" or "unknown",
+  block_size_bytes: uint64,
+  apfs_container_id: StableId or null, apfs_volume_id: StableId or null,
+  mount_generation: uint64, snapshot_generation: uint64,
+  total_bytes: uint64,
+  used_bytes: uint64,
+  available_bytes: uint64,
+  required_bytes: uint64,
+  reserve_bytes: uint64,
+  headroom_bytes: uint64,
+  observed_at: Timestamp,
+  expires_at: Timestamp,
+  source_evidence_digest: Digest
+}
+
+CapacityReservation = {
+  reservation_schema: "capacity-reservation/v1",
+  reservation_id: UUID,
+  transaction_id: UUID,
+  target_id: StableId,
+  target_snapshot_digest: Digest,
+  plan_digest: Digest,
+  bytes_reserved: uint64,
+  reserved_at: Timestamp,
+  expires_at: Timestamp,
+  state: "active" or "released" or "committed",
+  reservation_digest: Digest
+}
+
+CacheEntry = {
+  entry_id: LowerAsciiToken,
+  artifact_id: ArtifactId,
+  content_digest: Digest,
+  payload_digest: Digest,
+  size_bytes: uint64,
+  verification_receipt_digest: Digest,
+  schema_set_digest: Digest,
+  binding_identity: BindingIdentity,
+  source_generation: uint64,
+  expires_at: Timestamp,
+  relative_cache_path: PathToken,
+  file_mode: "0600" or "0644"
+}
+CacheSet = {
+  cache_set_schema: "verified-cache-set/v1",
+  cache_set_id: UUID,
+  manifest_id: DocumentId,
+  manifest_digest: Digest,
+  plan_digest: Digest,
+  entries: ExactList<CacheEntry, entry_id>,
+  complete_required_set: true,
+  set_digest: Digest
+}
+MutationStep = {
+  sequence: uint64, step_id: LowerAsciiToken, primitive_id: LowerAsciiToken,
+  operation: F02Operation, target_ids: ExactList<StableId, stable_id>,
+  precondition_digest: Digest, input_digests: ExactList<Digest, value>,
+  expected_effect_digest: Digest, postcondition_digest: Digest,
+  rollback_action_digest: Digest, irreversible: true
+}
+BootLineage = {predecessor: LineageTuple or null, target: LineageTuple,
+               expected_counter: uint64, source_generation: uint64}
+
+FinalConsent = {
+  consent_schema: "final-consent/v1",
+  consent_id: UUID, admission_identity_digest: Digest,
+  transaction_id: UUID,
+  owner_proof_receipt_id: ArtifactId,
+  target_account_record_id: ArtifactId,
+  operation: ProductOperation, scope: ProductScope, route_id: LowerAsciiToken,
+  target_snapshot_digest: Digest, capacity_requirement_digest: Digest,
+  plan_digest: Digest, mutation_list_digest: Digest, cache_set_digest: Digest,
+  ui_accessibility_receipt_digest: Digest,
+  decision: "consent",
+  confirmed_at: Timestamp,
+  expires_at: Timestamp,
+  nonce: Nonce,
+  replay_id: UUID,
+  consent_digest: Digest
+}
+```
+
+Capacity arithmetic is checked without wrap: `available_bytes >= required_bytes + reserve_bytes`, `required_bytes + reserve_bytes <= total_bytes`, and every integer operation is checked before addition. `layout_digest`, disk kind, block size, APFS container and volume identities, mount generation, and target snapshot generation are part of the target identity. A stale, missing, divergent, permission-denied, or insufficient reservation is `CAPACITY_INSUFFICIENT` or `JOURNAL_FAILURE` according to the precedence table.
+
+The cache is content-addressed and complete before final consent. The request contains cache digests and relative cache tokens, never a URL. Each entry is verified for bytes, size, schema set, binding, mode, source generation, and expiry. After consent, network access is denied at the executor boundary; a cache miss, substitution, redirect, package-manager lookup, or fetch is a typed failure and never a retry through an arbitrary source.
+
+Transaction ID allocation and a pending-consent journal header are metadata-only operations. They do not mutate the target. The exact mutation order is:
+
+```text
+OPEN_READ_ONLY -> VERIFY_DEPENDENCIES -> VERIFY_IDENTITY -> VERIFY_PLAN
+-> VERIFY_CACHE -> ALLOCATE_TRANSACTION -> WRITE_PENDING_JOURNAL -> RENDER_CONSENT
+-> VERIFY_FINAL_CONSENT -> WRITE_CONSENT_EVENT -> RESERVE_TARGET -> REVALIDATE_TARGET
+-> PREPARE_STAGED_CONTENT -> STEP_START -> PRIMITIVE -> POSTCONDITION
+-> REVALIDATE_TARGET -> ... repeated in declared sequence ...
+-> ATOMIC_COMMIT -> VERIFY_BOOT -> WRITE_EVIDENCE_ONLY -> CLOSE_JOURNAL
+```
+
+No mutation, package lookup, network fetch, firmware write, DTB write, boot selection, disk/APFS operation, or service mutation occurs before final consent. Every irreversible step has a declared `step_id`, `primitive_id`, stable target IDs, input digests, precondition digest, postcondition digest, and one rollback action. The primitive checks the live transaction immediately before mutation and records the postcondition immediately after. A process exit code alone is never a postcondition.
+
+`P01.ExecutorRequest/v1` is closed and has exactly:
+
+```text
+ExecutorRequest = {
+  transaction_id: UUID, admission_identity_digest: Digest, journal_id: UUID,
+  operation: ProductOperation, scope: ProductScope,
+  route_id: LowerAsciiToken, owner_proof: OwnerProofReceipt,
+  target_account: TargetAccount, target_snapshot: TargetSnapshot,
+  capacity_reservation: CapacityReservation, verified_cache: CacheSet,
+  plan_digest: Digest, mutation_list_digest: Digest, final_consent: FinalConsent,
+  mutation_list: ExactList<MutationStep, sequence>, boot_lineage: BootLineage
+}
+ExecutorResult = {
+  transaction_id: UUID, admission_identity_digest: Digest, journal_id: UUID,
+  transaction_identity_digest: Digest,
+  operation: ProductOperation, scope: ProductScope, plan_digest: Digest,
+  mutation_list_digest: Digest, target_ids: ExactList<StableId, stable_id>,
+  qualification_provenance: ExactList<QualificationRef, qualification_record_id>,
+  state: StateId, code: ErrorCode or ResultCode, path: JsonPath or LowerAsciiToken,
+  phase: Phase, process_status: Status, completed_steps: ExactList<StepRef, step_id>,
+  rollback_state: RollbackState, boot_lineage: BootLineage,
+  journal_chain_digest: Digest, result_digest: Digest
+}
+```
+
+`ExecutorRequest` is created only after final consent has been verified; the request's metadata allocation cannot invoke a primitive. `ExecutorResult` is a result projection, not an authority-bearing boot or promotion record. A missing field, substituted target, altered cache set, changed consent, or transaction identity mismatch returns the first exact registry row and cannot be repaired by a route or environment value.
+
+## 8. Exhaustive current route and privileged-mutator graph
+
+This is a source census, not a claim that the current tree is safe. The graph is closed over the exact live base snapshot and includes every file in the scoped product roots, not merely representative routes.
+
+```text
+BASE_COMMIT = 95ffbc41a6d5d5356c217e503b51f3f7c3bd80f1
+ROOTS = [install.sh, bin, install, default/omarchy/omarchy-menu.jsonc]
+SOURCE_NODES = 563 files from install.sh plus every file under bin and install
+BIN_NODE_COUNT = 458
+INSTALL_NODE_COUNT = 104
+RELEVANT_ROUTE_MUTATOR_PATHS = 123 source paths: install.sh plus every bin/omarchy-* path whose first token is apply, channel, install, migrate, pkg, provision, refresh, reinstall, remove, update, or upgrade
+BASE_PATH_SET_SHA256 = sha256:03b62f5693f9080c183bd3a40249ca5ead9b274c87ed40bb5199abe3f2492dc
+RELEVANT_ROUTE_MUTATOR_PATH_SET_SHA256 = sha256:d5682e84433723d72e88c45102daa867681e6283e037e994edafc5052c1ffa7a
+BIN_TREE_ID = f11f7222f51da7cff7383e7505510e8656fefb3e
+INSTALL_TREE_ID = 6af308308bafa310b23ade52b08a761cf7fc46f7
+INSTALL_SH_BLOB_ID = 1189095e4fa14709256b505e9637e119a0692aeb
+MENU_BLOB_ID = 59582db734570d1fa7b346f7b53541a3343cc45f
+MENU_ACTION_COUNT = 270
+MENU_ACTION_LINES_SHA256 = sha256:e6b5a3c874a397d54005d3beb776acead9bcef47d9f65be4813d2c88edaa7620
+```
+
+The source path set is mechanically reproduced only from these non-opaque roots:
+
+```text
+{ printf '%s\n' install.sh;
+  git ls-tree -r --name-only 95ffbc41a6d5d5356c217e503b51f3f7c3bd80f1 -- bin install;
+} | LC_ALL=C sort -u
+
+{ printf '%s\n' install.sh;
+  git ls-tree -r --name-only 95ffbc41a6d5d5356c217e503b51f3f7c3bd80f1 -- bin install \
+    | rg '^bin/omarchy-(apply|channel|install|migrate|pkg|provision|refresh|reinstall|remove|update|upgrade)';
+} | LC_ALL=C sort -u
+
+git show 95ffbc41a6d5d5356c217e503b51f3f7c3bd80f1:default/omarchy/omarchy-menu.jsonc \
+  | rg '"action"[[:space:]]*:'
+```
+
+The route graph artifact must contain one `RouteNode` for every source node and one menu edge for every parsed action. It is invalid to publish only 21 route rows or to aggregate a directory into one node.
+
+```text
+RouteNode = {
+  node_id: LowerAsciiToken,
+  path: RelativeRepoPath,
+  blob_digest: Digest,
+  node_kind: "root" or "command" or "install-leaf" or "service" or "asset",
+  route_key: LowerAsciiToken or null,
+  metadata_digest: Digest or null,
+  parent_node_ids: ExactList<LowerAsciiToken, node_id>,
+  outgoing_edge_ids: ExactList<LowerAsciiToken, edge_id>,
+  privilege_class: "read-only" or "user" or "root" or "user-or-root" or "broker-only" or "forbidden",
+  mutation_class: MutationClass,
+  required_guard: GuardId,
+  status: "UNSAFE_BASELINE" or "DESIGN_ONLY" or "IMPLEMENTED_AND_VERIFIED"
+}
+RouteEdge = {
+  edge_id: LowerAsciiToken,
+  from_node_id: LowerAsciiToken,
+  to_node_id: LowerAsciiToken or null,
+  edge_kind: "router" or "metadata" or "menu-action" or "menu-condition" or "alias"
+              or "literal-source" or "literal-exec" or "primitive" or "dynamic",
+  source_pointer: SourcePointer, menu_key: LowerAsciiToken or null,
+  command_token: SourceText,
+  privilege_class: "read-only" or "user" or "root" or "user-or-root" or "broker-only" or "forbidden",
+  mutation_class: MutationClass,
+  guard: GuardId,
+  expected_result: ErrorCode or ResultCode
+}
+MenuEntry = {
+  menu_key: LowerAsciiToken, action: SourceText or null, when: SourceText or null,
+  checked: SourceText or null, disabled: SourceText or null, aliases: ExactList<LowerAsciiToken, alias>
+}
+```
+
+The graph generator is exact: a literal `source` or `.` path under the roots creates a `literal-source` edge; a literal executable token creates a `literal-exec` edge; a token in the closed primitive set creates a `primitive` edge; each menu `action`, `when`, `checked`, and `disabled` expression produces a `menu-action` or `menu-condition` edge; aliases produce `alias` edges. `eval`, `bash -c`, variable `source`, variable `exec`, command substitution used as a command, or unresolved menu action creates a `dynamic` edge that is forbidden. `bin/omarchy` metadata is read only from its first 80 lines and route keys are compared with the repository command registry. A missing source node, unresolved edge, duplicate route key, path alias, dynamic edge, or unclassified primitive is a CI failure, not an ignored path.
+
+The privileged primitive set is closed to `pacman`, `paru`, `yay`, `fwupdmgr`, `install`, `cp`, `mv`, `rm`, `ln`, `tee`, `dd`, `mount`, `umount`, `mkfs`, `btrfs`, `systemctl`, `loginctl`, `useradd`, `usermod`, `passwd`, `chown`, `chmod`, `setfacl`, `git clone`, `git fetch`, `git checkout`, `git reset`, `curl`, `wget`, `flatpak`, `reboot`, `shutdown`, `efibootmgr`, `mkinitcpio`, and every direct `sudo` or `pkexec` invocation. Each occurrence receives a source pointer and a `MutationClass` such as `package`, `config`, `service`, `firmware`, `dtb`, `boot`, `storage`, `account`, `channel`, `migration`, `diagnostics`, `upload`, or `reboot`. A future broker guard is required at every edge, not only at the public command.
+
+The privileged occurrence inventory is also closed; a path-only count is not sufficient. Its record is:
+
+```text
+PrimitiveOccurrence = {
+  occurrence_id: LowerAsciiToken, source_pointer: SourcePointer,
+  primitive_token: one exact member of the privileged primitive set,
+  enclosing_node_id: LowerAsciiToken, incoming_edge_id: LowerAsciiToken,
+  argument_digest: Digest, privilege_class: "user" or "root" or "broker-only" or "forbidden",
+  mutation_class: MutationClass, required_guard: GuardId,
+  current_status: "UNSAFE_BASELINE" or "NOT_PRESENT" or "IMPLEMENTED_AND_VERIFIED",
+  expected_result: ErrorCode or ResultCode
+}
+RouteGraph = {
+  graph_schema: "product-route-graph/v1",
+  base_commit: FullCommitId,
+  source_path_set_digest: Digest, menu_action_lines_digest: Digest,
+  source_nodes: ExactList<RouteNode, node_id>,
+  edges: ExactList<RouteEdge, edge_id>,
+  primitive_occurrences: ExactList<PrimitiveOccurrence, occurrence_id>,
+  graph_digest: Digest, occurrence_set_digest: Digest
+}
+```
+
+The exact base graph artifact must publish every `PrimitiveOccurrence`, including occurrences in comments only when the parser classifies them as non-executable and records that classification, and must publish a canonical occurrence-set digest. A shell lexical scan, a count of command names, or a clean syntax result is not a graph. In this docs-only lane the graph artifact is `NOT_IMPLEMENTED`; every scoped source node and occurrence remains `UNSAFE_BASELINE`, and no current route is thereby accepted.
+
+### 8.1 Product route families and explicit omitted base paths
+
+The 25 product route families are projections over the full graph and are not the graph itself: `install`, `setup`, `apply-system`, `apply-hardware`, `provision-owner`, `provision-user`, `first-run`, `channel-set`, `update`, `update-system-pkgs`, `update-dev`, `update-firmware`, `reinstall-pkgs`, `update-restart`, `upgrade-to-quattro-mac`, `pkg-add`, `pkg-drop`, `refresh-pacman`, `refresh-config`, `migrate`, `debug`, `admission`, `omarchy-platform`, `install/helpers`, and forbidden direct or dynamic invocation. Every family must resolve to the source-node and edge records above.
+
+The family projection is itself closed:
+
+```text
+route_id,entry_point,route_class,edge_target,privilege_class,mutation_class
+ROUTE-01,install.sh,adapter,admission.open,root,system
+ROUTE-02,bin/omarchy-mac-setup,adapter,admission.open,root,system
+ROUTE-03,bin/omarchy-apply-system,adapter,broker,root,system
+ROUTE-04,bin/omarchy-apply-hardware,adapter,broker,root,hardware
+ROUTE-05,bin/omarchy-provision-owner,adapter,I-03,root,account
+ROUTE-06,bin/omarchy-provision-user,adapter,I-03,user,user
+ROUTE-07,bin/omarchy-provision-first-run,adapter,I-03,user,user
+ROUTE-08,bin/omarchy-channel-set,adapter,I-04,root,channel
+ROUTE-09,bin/omarchy-update,adapter,I-04,root,update
+ROUTE-10,bin/omarchy-update-system-pkgs,adapter,broker,root,package
+ROUTE-11,bin/omarchy-update-dev,development-only,forbidden,root,channel
+ROUTE-12,bin/omarchy-update-firmware,forbidden,forbidden,root,firmware
+ROUTE-13,bin/omarchy-reinstall-pkgs,adapter,broker,root,package
+ROUTE-14,bin/omarchy-update-restart,adapter,I-04,root,service
+ROUTE-15,bin/omarchy-upgrade-to-quattro-mac,adapter,I-03,root,system
+ROUTE-16,bin/omarchy-pkg-add,adapter,broker,root,package
+ROUTE-17,bin/omarchy-pkg-drop,adapter,broker,root,package
+ROUTE-18,bin/omarchy-refresh-pacman,adapter,broker,root,package
+ROUTE-19,bin/omarchy-refresh-config,adapter,broker,user-or-root,config
+ROUTE-20,bin/omarchy-migrate,adapter,I-04,root,migration
+ROUTE-21,bin/omarchy-debug,adapter,read-only,user,diagnostics
+ROUTE-22,bin/omarchy-admission,proposed,construct_trusted,broker-only,read-only
+ROUTE-23,omarchy-platform,proposed,I-04,broker-only,all-privileged
+ROUTE-24,install/helpers,leaf,broker,root,all-privileged
+ROUTE-25,direct-copied-generated-dynamic,forbidden,none,forbidden,all-privileged
+```
+
+The exact 123-path relevant set, recomputed from the predicate above, is:
+
+```text
+bin/omarchy-apply-hardware
+bin/omarchy-apply-lock
+bin/omarchy-apply-system
+bin/omarchy-channel-current
+bin/omarchy-channel-set
+bin/omarchy-install-1password
+bin/omarchy-install-ai-chatgpt
+bin/omarchy-install-and-launch
+bin/omarchy-install-app
+bin/omarchy-install-browser
+bin/omarchy-install-chromium-copy-url
+bin/omarchy-install-chromium-google-account
+bin/omarchy-install-chromium-ytdlp
+bin/omarchy-install-cursor
+bin/omarchy-install-dev-env
+bin/omarchy-install-docker-dbs
+bin/omarchy-install-editor-emacs
+bin/omarchy-install-editor-helix
+bin/omarchy-install-editor-vscode
+bin/omarchy-install-editor-zed
+bin/omarchy-install-font
+bin/omarchy-install-gaming-battlenet
+bin/omarchy-install-gaming-geforce-now
+bin/omarchy-install-gaming-gpu-lib32
+bin/omarchy-install-gaming-heroic
+bin/omarchy-install-gaming-lutris
+bin/omarchy-install-gaming-retroarch
+bin/omarchy-install-gaming-steam
+bin/omarchy-install-gaming-xbox-cloud
+bin/omarchy-install-gaming-xbox-controllers
+bin/omarchy-install-preinstalls
+bin/omarchy-install-service-1password
+bin/omarchy-install-service-dropbox
+bin/omarchy-install-service-nordvpn
+bin/omarchy-install-service-once
+bin/omarchy-install-service-signal
+bin/omarchy-install-service-spotify
+bin/omarchy-install-service-sunshine
+bin/omarchy-install-service-tailscale
+bin/omarchy-install-terminal
+bin/omarchy-installed-service-dropbox
+bin/omarchy-installed-service-tailscale
+bin/omarchy-migrate
+bin/omarchy-migrate-notify
+bin/omarchy-pkg-add
+bin/omarchy-pkg-aur-accessible
+bin/omarchy-pkg-aur-add
+bin/omarchy-pkg-aur-install
+bin/omarchy-pkg-drop
+bin/omarchy-pkg-install
+bin/omarchy-pkg-missing
+bin/omarchy-pkg-present
+bin/omarchy-pkg-publish-aarch64
+bin/omarchy-pkg-remove
+bin/omarchy-provision-first-run
+bin/omarchy-provision-owner
+bin/omarchy-provision-user
+bin/omarchy-refresh-applications
+bin/omarchy-refresh-chromium
+bin/omarchy-refresh-config
+bin/omarchy-refresh-herdr
+bin/omarchy-refresh-hyprland
+bin/omarchy-refresh-hyprsunset
+bin/omarchy-refresh-limine
+bin/omarchy-refresh-pacman
+bin/omarchy-refresh-pacman-mirrorlist
+bin/omarchy-refresh-plymouth
+bin/omarchy-refresh-sddm
+bin/omarchy-refresh-shell
+bin/omarchy-refresh-tmux
+bin/omarchy-reinstall
+bin/omarchy-reinstall-configs
+bin/omarchy-reinstall-pkgs
+bin/omarchy-remove-ai-chatgpt
+bin/omarchy-remove-ai-grok-bot
+bin/omarchy-remove-ai-lm-studio
+bin/omarchy-remove-ai-ollama
+bin/omarchy-remove-ai-t3-code
+bin/omarchy-remove-browser
+bin/omarchy-remove-dev-env
+bin/omarchy-remove-gaming-battlenet
+bin/omarchy-remove-gaming-geforce-now
+bin/omarchy-remove-gaming-heroic
+bin/omarchy-remove-gaming-lutris
+bin/omarchy-remove-gaming-minecraft
+bin/omarchy-remove-gaming-retroarch
+bin/omarchy-remove-gaming-steam
+bin/omarchy-remove-gaming-xbox-cloud
+bin/omarchy-remove-gaming-xbox-controllers
+bin/omarchy-remove-launcher-entry
+bin/omarchy-remove-preinstalls
+bin/omarchy-remove-security-fido2
+bin/omarchy-remove-security-fingerprint
+bin/omarchy-remove-security-sshd
+bin/omarchy-remove-security-sudoless-docker
+bin/omarchy-remove-service-1password
+bin/omarchy-remove-service-dropbox
+bin/omarchy-remove-service-sunshine
+bin/omarchy-remove-service-tailscale
+bin/omarchy-update
+bin/omarchy-update-analyze-logs
+bin/omarchy-update-aur-pkgs
+bin/omarchy-update-available
+bin/omarchy-update-confirm
+bin/omarchy-update-dev
+bin/omarchy-update-firmware
+bin/omarchy-update-keyring
+bin/omarchy-update-lock
+bin/omarchy-update-mise
+bin/omarchy-update-orphan-pkgs
+bin/omarchy-update-pacman-guard
+bin/omarchy-update-pkg-prune
+bin/omarchy-update-requires-free-space
+bin/omarchy-update-restart
+bin/omarchy-update-status
+bin/omarchy-update-stay-awake
+bin/omarchy-update-system-pkgs
+bin/omarchy-update-system-pkgs-when-conflicted
+bin/omarchy-update-time
+bin/omarchy-update-user-notify
+bin/omarchy-upgrade-to-quattro
+bin/omarchy-upgrade-to-quattro-mac
+install.sh
+```
+
+The graph also includes all direct menu actions from the exact menu blob, all command metadata routes, all `install/**` leaves and services, and every direct or transitive edge from `install.sh`. An action with no matching command node, a copied leaf, a sourced leaf, a generated wrapper, an environment-only fallback, a raw package or firmware primitive, a development channel, or an arbitrary reference is a forbidden edge with the exact error row from section 5. The base graph is a coverage input; it is not a product admission implementation. `ROUTE-01` through `ROUTE-25` are projections over this graph; they do not replace the 563 source nodes, 123 relevant paths, 270 menu action edges, or every primitive occurrence.
+
+### 8.2 Current unsafe observations and required guards
+
+The live base remains unsafe relative to this contract. These observations are recorded as residuals, not fixed behavior:
+
+| Base path | Current unsafe behavior | Required typed outcome |
 | --- | --- | --- |
-| `BASE-01` | `./test/cli` fails under macOS `/bin/bash` 3.2 because associative-array declarations are unsupported; the hardware-group assertion fails | Omarchy-mac baseline repair owner; repair and rerun before P-01 integration |
-| `BASE-02` | `bin/omarchy commands --check` fails under macOS Bash 3.2 with associative-array and expression errors | Omarchy-mac CLI/QA owner; metadata and router baseline must be repaired before route-gate consumption |
-| `BASE-03` | `./test/all` reports package/provision/install-mac failures and can hang at the sleep-lock test; the controlled run is not a PASS | Omarchy-mac baseline repair/QA owner; complete a bounded clean-run census before integration |
+| `install.sh` | unknown Apple identity warns and continues | `TRUST_FAILURE` before package or source access |
+| `bin/omarchy-pkg-add` | an unavailable or filtered package can print `Skipping` and exit 0 | `CACHE_MISS` or `PLAN_MISMATCH`, never success for required package |
+| `bin/omarchy-pkg-remove` | the menu exposes a direct package-removal primitive | `FORBIDDEN_ROUTE` before package action; only a declared I-04 step may remove |
+| `bin/omarchy-remove-preinstalls` | the menu exposes a direct preinstall-removal route | `FORBIDDEN_ROUTE` before package or marker mutation |
+| `bin/omarchy-channel-set` | `dev` can select a mutable remote and invoke package mutation | `FORBIDDEN_ROUTE` before checkout or package action |
+| `bin/omarchy-mac-setup` | `--repo` and `--ref` are accepted by the current command grammar | `FORBIDDEN_ROUTE` before source access |
+| `bin/omarchy-upgrade-to-quattro-mac` | arbitrary `--ref` is advertised | `FORBIDDEN_ROUTE` before checkout replacement |
+| `bin/omarchy-update-firmware` | raw EFI install and `fwupdmgr` mutation are reachable | `FORBIDDEN_ROUTE` until a manifest-bound I-04 step exists |
+| `bin/omarchy-update-time` | the menu exposes a direct system-time mutation route | `FORBIDDEN_ROUTE` until a typed, manifest-bound executor step exists |
+| `bin/omarchy-debug` | current diagnostics can copy raw logs or upload to the public log endpoint | `SUPPORT_BUNDLE_REDACTION_FAILED` or `UPLOAD_CONSENT_MISSING` before persistence or network |
+| `install/helpers/logging.sh` | current logging creates a world-writable log artifact | `LOCAL_BUNDLE_WRITE_FAILURE` until the fixed allowlist and mode `0600` are enforced |
+| `bin/omarchy-refresh-config` | caller path is interpolated without the promised traversal and symlink guard | `PATH_TRAVERSAL` before read or write |
+| `bin/omarchy-apply-system`, `bin/omarchy-apply-hardware`, `bin/omarchy-provision-user` | environment fallback can supply `OMARCHY_PATH` or `OMARCHY_INSTALL` | `OMARCHY_PATH_MISSING` with no fallback |
 
-The shell/Python syntax loop may show parser success for some files, but syntax success is not runtime, route, authority, privacy, recovery, qualification, or release evidence. This file does not claim the baseline is green.
+No current route is allowed to claim safety, support, compatibility, or release readiness from this table. `OMARCHY_PATH` is a required existing absolute environment value for packaged code; it is not a trust input and cannot be defaulted, re-exported, or supplied by a caller to bypass admission.
 
-## 15. Design-level checks and gate ownership
+## 9. F-06 and F-07 evidence handoffs
 
-The design checks run against the pinned target/base blobs and explicitly exclude the opaque boot boundary. A check that requires an absent executable or unavailable validator is `NOT IMPLEMENTED` or `TOOLING_BLOCK`, never PASS.
+P-03 and P-05 produce evidence only. They do not write stable state, select a channel, qualify a board, issue boot authority, or replace F-07. The following artifact IDs and preimages are the exact proposed handoff contract; `HOLD-03` and `HOLD-04` remain until F-06 and F-07 ratify their receipts.
 
-| Check | Expected design signal | Owner and gate |
+```text
+HandoffEnvelope = {
+  handoff_schema: "product-handoff/v1",
+  handoff_id: LowerAsciiToken,
+  artifact_id: ArtifactId,
+  document_id: DocumentId,
+  producer: LowerAsciiToken,
+  consumer: LowerAsciiToken,
+  owner: LowerAsciiToken,
+  due_before_gate: LowerAsciiToken,
+  scope: HandoffScope,
+  payload_digest: Digest,
+  content_digest: Digest,
+  preimage_id: LowerAsciiToken,
+  schema_set_digest: Digest,
+  binding_identity: BindingIdentity,
+  candidate_id: ArtifactId,
+  manifest_id: DocumentId,
+  manifest_digest: Digest,
+  board_profile_refs: ExactList<QualificationRef, qualification_record_id>,
+  issued_at: Timestamp,
+  expires_at: Timestamp,
+  acceptance_artifact_id: ArtifactId,
+  acceptance_artifact_digest: Digest,
+  rejection: RejectionTuple
+}
+HandoffReceipt = {
+  receipt_type: "F05" or "P03" or "P05" or "I09" or "B04" or "Q04" or "Q05" or "Q06" or "Q07" or "Q08",
+  artifact_id: ArtifactId, document_id: DocumentId, content_digest: Digest,
+  payload_digest: Digest, schema_set_digest: Digest, binding_identity: BindingIdentity,
+  candidate_id: ArtifactId, manifest_id: DocumentId, manifest_digest: Digest,
+  scope: HandoffScope, producer: LowerAsciiToken, issued_at: Timestamp, expires_at: Timestamp,
+  acceptance_artifact_id: ArtifactId, acceptance_artifact_digest: Digest
+}
+```
+
+| Handoff ID | Artifact and exact payload | Producer and owner | Consumer and due gate | Scope and identity bindings | Rejection |
+| --- | --- | --- | --- | --- | --- |
+| `HANDOFF-01` | `P03.PARITY-CENSUS.V1`, document `p03.parity.v1:candidate_id:revision_decimal`; payload has exact command route IDs, operation/scope, parity status, source blob digests, capability outcomes, residual refs, and candidate/manifest refs | P-03 census generator; P-03 owner | F-06 intake and F-07; due before F-07 | scope `P03/parity`; exact candidate, manifest, board/profile, qualification, route-graph, schema-set, binding, authority, and verified-clock digests | `PROMOTION_INTAKE_INVALID` at `promotion.intake`, phase `promotion`, status 3, reject |
+| `HANDOFF-02` | `P05.UPDATE-EVIDENCE.V1`, document `p05.update.v1:transaction_id:revision_decimal`; payload has transaction, plan, target, cache, consent, capacity, mutation, journal, boot-health, success-mark, slot, lineage, counter, rollback, and result refs | P-05 evidence producer; P-05 owner | F-06 intake and F-07; due before F-07 | scope `P05/update-evidence`; exact board, candidate, manifest, qualification, transaction, cache, target, health, lineage, slot, generation, counter, and clock bindings | `PROMOTION_INTAKE_INVALID` at `promotion.intake`, phase `promotion`, status 3, reject |
+| `HANDOFF-03` | `F06.COMPLIANCE-INTAKE.V1`, document `f06.compliance.v1:candidate_id:revision_decimal`; payload has F-05 receipt, P-03 receipt, P-05 receipt, I-09 receipt, B-04 receipt, Q-04, Q-05, Q-06, Q-07, Q-08 receipts, legal inventory, owner decision, conformance, candidate, rollback, ledger, and required-slice closure | F-06 compliance owner; F-06 owner | F-07 promotion terminal; due before promotion | scope `F06/compliance`; exact candidate, manifest, product, installer, boot, qualification, legal, rollback, ledger, authority, policy, schema-set, binding, clock, and expiry bindings | missing, unratified, stale, incomplete, or mismatched is `DEPENDENCY_UNRATIFIED` at `dependency.check`, phase `dependency`, status 4, hold |
+| `HANDOFF-04` | `F07.PROMOTION-EVIDENCE.V1`, document `f07.promotion.v1:candidate_id:revision_decimal`; payload has exact required-slice closure, candidate and rollback digests, applicable signed qualification records, compliance attestation, public-ledger projection, channel target, product handoff digests, and the F-07 decision | F-07 promotion terminal; F-07 owner | F-07 sole stable-channel writer; due before atomic digest copy | scope `F07/promotion`; exact candidate, manifest, board/profile, qualification, transaction, health, lineage, slot, generation, counter, authority, policy, legal, rollback, and ledger bindings | `PROMOTION_INTAKE_INVALID` at `promotion.intake`, phase `promotion`, status 3, reject; product cannot write |
+
+The four handoff payloads are closed as follows. `receipts` is an exact named list, not a free-form map:
+
+```text
+P03ParityPayload = {
+  candidate_id: ArtifactId, manifest_id: DocumentId, manifest_digest: Digest,
+  route_graph_commit: FullCommitId, route_graph_digest: Digest,
+  route_results: ExactList<RouteResult, route_id>, capability_results: ExactList<CapabilityResult, capability_id>,
+  residuals: ExactList<ResidualRef, residual_id>, qualification_refs: ExactList<QualificationRef, qualification_record_id>,
+  generated_at: Timestamp, expires_at: Timestamp
+}
+P05UpdateEvidencePayload = {
+  candidate_id: ArtifactId, manifest_id: DocumentId, manifest_digest: Digest,
+  transaction_id: UUID, transaction_identity_digest: Digest, plan_digest: Digest,
+  mutation_list_digest: Digest, target_snapshot_digest: Digest, capacity_reservation_digest: Digest,
+  cache_set_digest: Digest, final_consent_digest: Digest, journal_chain_digest: Digest,
+  boot_health_document_id: DocumentId, boot_health_payload_digest: Digest,
+  boot_success_document_id: DocumentId, boot_success_payload_digest: Digest,
+  slot_id: SlotId, slot_generation: uint64, lineage_id: UUID, attempt_counter: uint64,
+  rollback_evidence_digest: Digest, result_digest: Digest, qualification_refs: ExactList<QualificationRef, qualification_record_id>,
+  issued_at: Timestamp, expires_at: Timestamp
+}
+F06CompliancePayload = {
+  candidate_id: ArtifactId, manifest_id: DocumentId, manifest_digest: Digest,
+  receipts: ExactList<HandoffReceipt, receipt_type> in exact order
+             [F05, P03, P05, I09, B04, Q04, Q05, Q06, Q07, Q08],
+  license_inventory_digest: Digest, notice_bundle_digest: Digest, source_offer_digest: Digest,
+  owner_decision_log_entry_digest: Digest, conformance_receipt_digest: Digest,
+  rollback_digest: Digest, public_ledger_projection_digest: Digest, required_slice_closure_digest: Digest,
+  issued_at: Timestamp, expires_at: Timestamp
+}
+F07PromotionPayload = {
+  candidate_id: ArtifactId, manifest_id: DocumentId, manifest_digest: Digest,
+  rollback_digest: Digest, qualification_refs: ExactList<QualificationRef, qualification_record_id>,
+  compliance_receipt_digest: Digest, parity_receipt_digest: Digest, update_evidence_digest: Digest,
+  channel_target: "stable", public_ledger_projection_digest: Digest,
+  required_slice_closure_digest: Digest, promotion_decision: "promote" or "reject",
+  decision_log_entry_digest: Digest, issued_at: Timestamp, expires_at: Timestamp
+}
+```
+
+All four handoffs use the explicit preimages in section 5: `payload_digest` uses `P01_HANDOFF_PAYLOAD_DIGEST(H, P)` over the exact envelope `H` and payload `P` without digest fields, and `content_digest` uses `CONTENT_DIGEST(E)` over the complete canonical envelope bytes. The F-02 payload references retain `F02_PAYLOAD_DIGEST` and are never silently recomputed under a product label. The handoff `acceptance_artifact_digest` is outside the input preimage and points to the immutable consumer receipt. F-07 never accepts a section reference in place of a digest-addressed receipt. P-03, P-05, or a product route attempting to copy stable-channel state is `FORBIDDEN_ROUTE`.
+
+## 10. Total recovery, journal, and lineage
+
+The recovery machine has 13 states, all terminal and nonterminal behavior is explicit, and no `ANY` transition is permitted. `MAX_RECOVERY_ATTEMPTS = 3` per transaction. `rollback_depth` starts at 0 and may become 1 exactly once; a rollback failure or second rollback request enters quarantine and then tombstone, never recursive rollback.
+
+```text
+JournalHeader = {
+  journal_schema: "executor-journal/v1",
+  journal_id: UUID,
+  transaction_id: UUID,
+  transaction_identity_digest: Digest,
+  owner_account_id: AccountId,
+  plan_digest: Digest,
+  target_snapshot_digest: Digest,
+  state: StateId,
+  sequence: uint64,
+  chain_digest: Digest,
+  rollback_depth: 0 or 1,
+  attempt_count: uint16,
+  tombstone_digest: Digest or null
+}
+LineageTuple = {lineage_id: UUID, source_generation: uint64, slot_generation: uint64,
+                attempt_counter: uint64}
+JournalEvent = {
+  event_schema: "executor-journal-event/v1",
+  journal_id: UUID,
+  transaction_id: UUID,
+  sequence: uint64,
+  previous_chain_digest: Digest,
+  event_id: EventId,
+  state_before: StateId,
+  state_after: StateId,
+  step_id: LowerAsciiToken or null,
+  target_snapshot_digest: Digest,
+  precondition_digest: Digest or null,
+  postcondition_digest: Digest or null,
+  result_code: ErrorCode or ResultCode, process_status: Status, decision: Decision,
+  rollback_depth: 0 or 1,
+  event_digest: Digest
+}
+Tombstone = {
+  tombstone_schema: "transaction-tombstone/v1",
+  transaction_id: UUID,
+  transaction_identity_digest: Digest,
+  journal_chain_digest: Digest,
+  last_state: StateId,
+  attempt_count: uint16,
+  predecessor_lineage: LineageTuple,
+  terminal_code: ErrorCode or ResultCode,
+  terminal_result_digest: Digest,
+  terminal_path: JsonPath or LowerAsciiToken,
+  terminal_phase: Phase,
+  terminal_process_status: Status, terminal_decision: Decision,
+  closed_at: Timestamp,
+  redacted_evidence_digest: Digest,
+  tombstone_digest: Digest
+}
+```
+
+The state IDs and meanings are:
+
+| State ID | State | Allowed events and meaning |
 | --- | --- | --- |
-| exact target/parent/base and one-file scope | target `19b493c6c1688ec6c7a3c0d27d48144aa02cb369`, exact parent, base `quattro`, only this file | coordinator pre-edit and commit gate |
-| `git diff --check` and conflict-marker scan | no whitespace errors, tabs, or conflict markers | every commit |
-| Markdown table parser and width census | all table rows have the header column count; declared table counts match actual counts | design gate |
-| exact payload/route/state/fixture/residual scan | 8 / 25 / 11 / 21 / 11, unique definition IDs | design gate |
-| closed code/path/phase/result scan | every fixture and rejection cites a registry row; unknown is terminal `UNKNOWN_EVENT` | design gate and CI residual `RES-06` |
-| required-term scan | holds, owner proof, target account, qualification provenance, DTB consumer, `Trusted<BootContext>`, `VerifiedClock`, final consent, cache, target revalidation, F-06/F-07 IDs, recovery fence, privacy, metadata, and `OMARCHY_PATH` are present | design gate |
-| forbidden-claim scan | no compatibility, support, qualification, release, green baseline, or m1n1 characterization claim | coordinator adversarial gate |
-| source-to-design route coverage | all 21 current non-opaque command/install paths plus 4 proposed/forbidden paths are in ROUTE-01 through ROUTE-25 | route gate; absent routes are residuals, not PASS |
-| hostile fixture status | all 21 expected fixtures are specified; absent executable/corpus is `NOT IMPLEMENTED` | P-02 gate after RES-01/RES-05 |
-| external validator availability | unavailable DT/schema/JCS/doc tooling remains `TOOLING_BLOCK` | coordinator report |
+| `STATE-01` | `pending_consent` | `consent_accepted`, `cancel_before_consent`, `interrupt_before_consent` |
+| `STATE-02` | `consented` | `reserve_verified`, `cancel_before_reserve`, `interrupt_before_reserve` |
+| `STATE-03` | `reserved` | `step_started`, `cancel_after_reserve`, `interrupt_reserved` |
+| `STATE-04` | `applying` | `step_verified`, `step_failed`, `cancel_during_step`, `interrupt_applying` |
+| `STATE-05` | `verifying` | `commit_verified`, `postcondition_failed`, `target_changed`, `interrupt_verifying` |
+| `STATE-06` | `committed` | `health_evaluation_started`, `interrupt_committed` |
+| `STATE-07` | `evaluating` | `health_passed`, `health_failed`, `health_stale`, `interrupt_evaluating` |
+| `STATE-08` | `recovering` | `resume_to_applying`, `resume_to_verifying`, `rollback_once`, `rollback_again`, `abort_after_recovery`, `rollback_failed`, `attempt_limit_reached`, `interrupt_recovering`, `accessibility_failure` |
+| `STATE-09` | `rolled_back` | `close_rolled_back`, `duplicate_exact_terminal` |
+| `STATE-10` | `quarantined` | `write_quarantine_evidence`, `close_quarantine`, `duplicate_tombstoned` |
+| `STATE-11` | `aborted` | `close_aborted`, `duplicate_exact_terminal` |
+| `STATE-12` | `closed` | `duplicate_exact_terminal`, `duplicate_conflicting`, `unknown_terminal_event` |
+| `STATE-13` | `tombstoned` | `duplicate_tombstoned`, `unknown_terminal_event`; no mutation, resume, or rollback |
 
-Gate ownership is explicit: F-02/F-03 owners ratify schema, trust, authority, and generated outputs; I-03/I-04 owners ratify executor and recovery; Q owners produce qualification; P-01/P-02/P-03/P-04/P-05 owners implement product artifacts; F-06/F-07 owners ratify and consume promotion evidence; the coordinator independently reruns the hostile and full gate battery. Nothing in this design self-marks a gate DONE.
+The complete transition table is:
 
-## 16. Handoff and non-claims
+| From | Event | Guard | To | Exact result |
+| --- | --- | --- | --- | --- |
+| `pending_consent` | `consent_accepted` | fresh final consent, exact plan, target, cache, accessibility receipt | `consented` | `VALID` |
+| `pending_consent` | `cancel_before_consent` | no mutation and no reservation | `aborted` | `USER_CANCELLED_BEFORE_CONSENT` |
+| `pending_consent` | `interrupt_before_consent` | journal durable, no mutation | `aborted` | `POWER_LOSS_INTERRUPTED` |
+| `consented` | `reserve_verified` | journal, target, capacity, cache, privilege all verify | `reserved` | `VALID` |
+| `consented` | `cancel_before_reserve` | no reservation or mutation | `aborted` | `USER_CANCELLED_BEFORE_CONSENT` |
+| `consented` | `interrupt_before_reserve` | journal durable, no mutation | `aborted` | `POWER_LOSS_INTERRUPTED` |
+| `reserved` | `step_started` | declared step and target revalidated | `applying` | `VALID` |
+| `reserved` | `cancel_after_reserve` | rollback action available and depth 0 | `recovering` | `USER_CANCELLED_AFTER_RESERVE` |
+| `reserved` | `interrupt_reserved` | reservation and journal durable | `recovering` | `POWER_LOSS_INTERRUPTED` |
+| `applying` | `step_verified` | postcondition and target revalidated | `verifying` | `VALID` |
+| `applying` | `step_failed` | failure journaled, rollback action exists | `recovering` | `STEP_POSTCONDITION_FAILED` |
+| `applying` | `cancel_during_step` | primitive stopped at safe boundary | `recovering` | `USER_CANCELLED_AFTER_RESERVE` |
+| `applying` | `interrupt_applying` | event durable before or after primitive is identified | `recovering` | `POWER_LOSS_INTERRUPTED` |
+| `verifying` | `commit_verified` | exact postconditions, target, and journal chain verify | `committed` | `VALID` |
+| `verifying` | `postcondition_failed` | exact rollback action available | `recovering` | `STEP_POSTCONDITION_FAILED` |
+| `verifying` | `target_changed` | target differs at protected boundary | `recovering` | `TARGET_REVALIDATION_FAILED` |
+| `verifying` | `interrupt_verifying` | journal identifies commit boundary | `recovering` | `POWER_LOSS_INTERRUPTED` |
+| `committed` | `health_evaluation_started` | atomic commit record is durable | `evaluating` | `VALID` |
+| `committed` | `interrupt_committed` | commit record durable, health not evaluated | `evaluating` | `POWER_LOSS_INTERRUPTED` |
+| `evaluating` | `health_passed` | full BOOT mapping and checks pass | `closed` | `CLOSED` |
+| `evaluating` | `health_failed` | predecessor and rollback set verify, depth 0 | `recovering` | `BOOT_REQUIRED_CHECK_FAILURE` |
+| `evaluating` | `health_stale` | health or clock is expired | `recovering` | `EXPIRY_OR_REPLAY_FAILURE` |
+| `evaluating` | `interrupt_evaluating` | journal durable, no success inferred | `recovering` | `POWER_LOSS_INTERRUPTED` |
+| `recovering` | `resume_to_applying` | state re-derived at a pre-primitive boundary, target and cache revalidated, attempt below 3 | `applying` | `VALID` |
+| `recovering` | `resume_to_verifying` | state re-derived after a primitive, target and postcondition revalidated, attempt below 3 | `verifying` | `VALID` |
+| `recovering` | `rollback_once` | depth 0, predecessor exact, target safe | `rolled_back` | `ROLLED_BACK` |
+| `recovering` | `rollback_again` | rollback depth is already 1 | `quarantined` | `RECOVERY_RECURSION` |
+| `recovering` | `abort_after_recovery` | no further mutation and evidence durable | `aborted` | `ABORTED` |
+| `recovering` | `rollback_failed` | the one rollback action failed | `quarantined` | `RECOVERY_TERMINAL` |
+| `recovering` | `attempt_limit_reached` | attempt count is exactly 3 before another resume | `quarantined` | `RECOVERY_TERMINAL` |
+| `recovering` | `interrupt_recovering` | journal event durable | `recovering` | `POWER_LOSS_INTERRUPTED` |
+| `recovering` | `accessibility_failure` | recovery controls cannot be restored and redacted evidence is durable | `quarantined` | `ACCESSIBILITY_RECOVERY_FAILED` |
+| `rolled_back` | `close_rolled_back` | predecessor and evidence verify | `closed` | `CLOSED` |
+| `rolled_back` | `duplicate_exact_terminal` | exact same transaction identity | `closed` | `ROLLED_BACK` |
+| `quarantined` | `write_quarantine_evidence` | redacted evidence durable | `quarantined` | `QUARANTINED` |
+| `quarantined` | `close_quarantine` | evidence receipt durable | `tombstoned` | `QUARANTINED` |
+| `quarantined` | `duplicate_tombstoned` | transaction identity is tombstoned | `tombstoned` | `TRANSACTION_TOMBSTONED` |
+| `aborted` | `close_aborted` | journal and evidence durable | `closed` | `CLOSED` |
+| `aborted` | `duplicate_exact_terminal` | exact same transaction identity | `closed` | `ABORTED` |
+| `closed` | `duplicate_exact_terminal` | exact transaction and result digest | `closed` | `CLOSED` |
+| `closed` | `duplicate_conflicting` | same transaction ID with any changed identity | `tombstoned` | `DUPLICATE_TRANSACTION` |
+| `closed` | `unknown_terminal_event` | event not in this table | `tombstoned` | `UNKNOWN_EVENT` |
+| `tombstoned` | `duplicate_tombstoned` | any replay of tombstoned identity | `tombstoned` | `TRANSACTION_TOMBSTONED` |
+| `tombstoned` | `unknown_terminal_event` | any other event | `tombstoned` | `UNKNOWN_EVENT` |
 
-This correction closes the design contract at the seams that the first review found open: dependency holds have one deterministic terminal result; admission input and output are typed and complete; all eight payloads have end-to-end source/validator/binding/consumer/freshness/rejection rows; qualification and DTB provenance are bound; boot evaluation is `Trusted<BootContext>` plus `VerifiedClock`; I-03/I-04 have a closed transaction; route/call-graph coverage and metadata/privilege/path rules are explicit; F-06/F-07 have exact artifact IDs and digest preimages; recovery is total; UX/accessibility/privacy are typed; enforcement uses a manifest and broker boundary; residuals and baseline failures are separate.
+Every row writes one chained journal event before the state becomes visible; the event contains the row's exact result code, status, decision, state pair, and guard digest. A missing or torn event is `JOURNAL_FAILURE`; an event with a wrong previous chain digest is `JOURNAL_FAILURE`; a repeated sequence is `DUPLICATE_TRANSACTION`; an unknown state or event is `UNKNOWN_EVENT`. `attempt_count` starts at zero. Resume re-derives from the last durable record, never process memory. A `resume_to_applying` or `resume_to_verifying` event increments `attempt_count` exactly once after its guard passes and is allowed only when the prior count is below 3; `attempt_limit_reached` is the only transition when the count is exactly 3. Interruption, duplicate delivery, rollback, closure, and tombstoning never increment it. A rollback to another manifest or slot generation creates a new lineage ID and tombstones the old tuple; within one lineage, source generation, slot generation, and attempt counter are strictly monotonic and are compared from authenticated predecessor records. Counters are never reset, reused, wrapped, or inferred from a success marker. `close_rolled_back`, `close_aborted`, and `health_passed` require the terminal journal event, exact result digest, redacted evidence receipt, and released reservation; only then may the transaction be `closed`. Quarantine closure writes the tombstone before exposing `tombstoned`; the tombstone permanently binds transaction ID, identity digest, last journal chain digest, terminal code, terminal result, and closure time.
 
-The contract is still a design handoff, not an implementation or evidence handoff. F-02, F-03, F-06, F-07, I-03, I-04, qualification, physical evidence, CI, and branch protection remain held or absent as recorded above. The product lane does not establish compatibility, support, qualification, release readiness, stable promotion, or physical success. The only completion signal for this lane is the coordinator's external verification after the single atomic commit; this document itself never says DONE.
+## 11. Privacy, accessibility, upload, retention, and deletion
+
+The privacy result is machine-checkable and closed. Redaction occurs before journal, log, local bundle, or upload persistence. A field not in the allowlist is a failure, not an omitted warning.
+
+```text
+PrivacyReceipt = {
+  receipt_schema: "privacy-outcome/v1",
+  bundle_id: UUID,
+  transaction_id: UUID or null,
+  privacy_policy_id: PolicyId, privacy_policy_digest: Digest,
+  allowlist_id: "support-allowlist/v1",
+  allowlist_digest: Digest,
+  redaction_input_digest: Digest,
+  redacted_content_digest: Digest,
+  local_mode: "0600",
+  local_retention_deadline: Timestamp,
+  deletion_requested_at: Timestamp or null,
+  local_deletion_attempts: uint8,
+  local_deletion_result: "deleted" or "not-found" or "failed" or null,
+  local_deletion_evidence_digest: Digest or null,
+  upload_consent_id: UUID or null,
+  endpoint_id: "logs-omarchy-org-support-bundles-v1" or null,
+  tls_verification_digest: Digest or null,
+  remote_retention_deadline: Timestamp or null,
+  remote_deletion_attempts: uint8 or null,
+  remote_deletion_result: "deleted" or "not-found" or "failed" or null,
+  remote_deletion_evidence_digest: Digest or null,
+  audit_digest: Digest, result_code: ErrorCode or ResultCode,
+  process_status: Status, decision: Decision
+}
+```
+
+The closed support allowlist is `result_schema`, adapter identity, operation, scope, route ID, transaction pseudonym, journal chain digest, code, path, phase, process status, decision, safe next action, artifact/document/content/payload/schema/binding digests, authority and policy versions, verified-clock ID and quantized times, capability IDs and statuses, `board_id_pseudonym`, `qualification_profile_id_pseudonym`, and pseudonymized target, owner, and account IDs. The fixed allowlist has no policy escape: raw board/profile identifiers are forbidden, and a stricter policy may remove fields but may not add them. Raw account names, UIDs, proofs, target serials, disk or volume paths, environment values, credentials, keys, handles, MACs, package secrets, query-bearing URLs, raw command output, raw device-tree bytes, and raw firmware identifiers are never persisted.
+
+The proposed privacy policy is local mode `0600`, local retention 30 days, immediate local deletion, upload opt-in through a second consent, one endpoint `https://logs.omarchy.org/v1/support-bundles`, verified TLS, no redirects, and remote retention 24 hours with deletion evidence. These values are design requirements, not current behavior; upload remains `PRIVACY_POLICY_UNRATIFIED` until its policy receipt is ratified. A stricter ratified policy may narrow the allowlist or retention, never widen it. Privacy checks run in this order: allowlist and redaction, local write and mode, local retention and deletion, second consent, endpoint and redirect, TLS, remote retention, remote deletion, then audit closure.
+
+| Boundary | Required machine outcome |
+| --- | --- |
+| redaction sees an extra or secret field | `PRIVACY_FIELD_FORBIDDEN` at the first disallowed field, no persistence |
+| redaction digest or proof cannot be produced after the allowlist passes | `SUPPORT_BUNDLE_REDACTION_FAILED`, no persistence |
+| local file cannot be created, is not mode 0600, or disk is full | `LOCAL_BUNDLE_WRITE_FAILURE`, no partial bundle or upload |
+| local deletion cannot be proven | `DELETION_FAILURE`; no upload; retry deletion exactly three times then terminal failure |
+| upload not explicitly requested | `UPLOAD_CONSENT_MISSING`, no network |
+| endpoint differs or redirects | `FORBIDDEN_ROUTE`, no upload |
+| TLS validation fails | `UPLOAD_TLS_FAILURE`, no upload |
+| certificate policy is absent | `PRIVACY_POLICY_UNRATIFIED`, no upload |
+| remote retention receipt is absent | `UPLOAD_AUDIT_FAILURE`, no success result |
+| remote deletion receipt is absent or reports failure | `DELETION_FAILURE`, no success result |
+| accessible control, focus restoration, keyboard path, or screen-reader state is missing before consent | `ACCESSIBILITY_UNAVAILABLE`, no mutation |
+| accessibility is lost after reserve or during recovery | `ACCESSIBILITY_RECOVERY_FAILED`, journal preserved, no hidden action, quarantine if safe recovery UI cannot be restored |
+
+The receipt has these totality invariants: `privacy_policy_id` and `privacy_policy_digest` must resolve to the ratified policy before upload; `upload_consent_id`, endpoint, TLS, remote-retention, remote-deletion, and `remote_deletion_attempts` fields are all null when upload is not requested; a remote receipt is impossible without a verified upload; `local_deletion_attempts` and `remote_deletion_attempts` are zero before their respective deletion requests and never exceed three; `local_deletion_result=deleted` or `not-found` requires a non-null local deletion evidence digest; a failed deletion has exactly three bounded attempts, then `DELETION_FAILURE` and a quarantine evidence receipt; and no success result is emitted while any required local or remote deletion receipt is missing. No retry widens the endpoint, allowlist, retention, or consent policy.
+
+Every UI state has a visible label, programmatic role and name, keyboard order, live-region transition, and non-color/non-audio meaning. Target summary, scope, plan, required and optional outcomes, consent, cancel, resume, rollback, and abort are visible and keyboard reachable. `Esc` maps to the current cancellation event. Recovery controls are not hidden from assistive technology. An inaccessible implementation cannot proceed by using a background or terminal-only implicit consent.
+
+## 12. Full fixture schema and hostile corpus
+
+The fixture corpus is a design requirement. Every fixture has one canonical input and one mutation. The fixture record is:
+
+```text
+Fixture = {
+  fixture_id: "FIX-01" through "FIX-33" or "FIX-27-A" through "FIX-27-I",
+  owner: LowerAsciiToken,
+  due_before_gate: LowerAsciiToken,
+  operation: ProductOperation, scope: ProductScope, exact_scope: ExactScope,
+  input_artifact_id: ArtifactId,
+  input_content_digest: Digest,
+  mutation: {selector: JsonPath, before_digest: Digest, after_digest: Digest, description: SafeDescription},
+  event_id: EventId or null,
+  expected_phase: Phase,
+  expected_code: ErrorCode or ResultCode,
+  expected_path: JsonPath or LowerAsciiToken,
+  expected_process_status: Status,
+  expected_decision: Decision,
+  expected_state: StateId or null,
+  expected_side_effect: "none" or "journal-only" or "rollback-only" or "quarantine-only",
+  expected_evidence_artifact_id: ArtifactId,
+  preimage_id: LowerAsciiToken,
+  implementation_status: "NOT_IMPLEMENTED" or "IMPLEMENTED_AND_VERIFIED"
+}
+```
+
+For fixture `FIX-NN`, `expected_evidence_artifact_id` is the exact token `p01.fixture-result.fix-nn.v1` and `preimage_id` is `p01.fixture-result.fix-nn.v1`; interruption subcases use the same form with the lowercase subcase suffix. The acceptance artifact named in the table is a separate owner receipt and must itself carry the fixture ID, input digest, mutation digest, expected result tuple, and implementation status. `expected_state` is the destination state in section 10, or null only for a rejection before transaction allocation.
+
+The expected destination state is closed and independently checkable:
+
+```text
+FIXTURE_EXPECTED_STATE = {
+  FIX-01:null, FIX-02:null, FIX-03:null, FIX-04:null, FIX-05:null, FIX-06:null, FIX-07:null,
+  FIX-08:null, FIX-09:null, FIX-10:null, FIX-11:null, FIX-12:STATE-02, FIX-13:STATE-01,
+  FIX-14:STATE-08, FIX-15:STATE-08, FIX-16:null, FIX-17:null, FIX-18:null, FIX-19:null,
+  FIX-20:null, FIX-21:null, FIX-22:null, FIX-23:STATE-07, FIX-24:STATE-07,
+  FIX-25:null, FIX-26:STATE-13, FIX-27:STATE-08, FIX-28:null, FIX-29:null, FIX-30:STATE-10,
+  FIX-31:STATE-08, FIX-32:STATE-07, FIX-33:STATE-08
+}
+FIX-27-A: STATE-11; FIX-27-B: STATE-11; FIX-27-C: STATE-08; FIX-27-D: STATE-08;
+FIX-27-E: STATE-08; FIX-27-F: STATE-07; FIX-27-G: STATE-08; FIX-27-H: STATE-08; FIX-27-I: STATE-10
+
+FIXTURE_EVENT = {
+  FIX-27-A: interrupt_before_consent, FIX-27-B: interrupt_before_reserve,
+  FIX-27-C: interrupt_reserved, FIX-27-D: interrupt_applying,
+  FIX-27-E: interrupt_verifying, FIX-27-F: interrupt_committed,
+  FIX-27-G: interrupt_evaluating, FIX-27-H: interrupt_recovering,
+  FIX-27-I: rollback_again
+}
+```
+
+Each `FIX-27-*` record inherits operation `update`, scope `platform-update`, status 4, and the exact `POWER_LOSS_INTERRUPTED` result unless the subcase explicitly names `RECOVERY_RECURSION`; it must materialize its own input artifact ID, input digest, mutation before/after digests, expected evidence ID, owner acceptance receipt, and preimage. Missing materialization is `NOT_IMPLEMENTED`, not a pass.
+
+| Fixture | Single mutation and operation/scope | Expected code, path, phase, status, decision, side effect | Owner, due, acceptance |
+| --- | --- | --- | --- |
+| `FIX-01` | add unknown nested property to a payload, `inspect/read-only` | `UNKNOWN_FIELD`, `$.payload.unexpected`, `shape`, 3, reject, none | P-02; before P-01; receipt `p02.fixture-01.v1` and digest |
+| `FIX-02` | repeat a JSON name or semantic collection key, `inspect/read-only` | `DUPLICATE_SEMANTIC_KEY`, `$.payload.boards[0].duplicate_key`, `shape`, 3, reject, none | F-02; before P-01; receipt `f02.canonical.v1` and digest |
+| `FIX-03` | replace canonical bytes with a UTF-8 BOM, `inspect/read-only` | `PARSE_SCHEMA_FAILURE`, `$.transport.utf8`, `shape`, 3, reject, none | F-02; before P-01; receipt `f02.parse.v1` and digest |
+| `FIX-04` | change document ID without changing signed payload, `inspect/read-only` | `SIGNATURE_CONTEXT_MISMATCH`, `$.payload.document_id`, `verify`, 3, reject, none | F-02/F-03; before P-01; receipt `f02.transplant.v1` and digest |
+| `FIX-05` | use a stale or replayed verified clock, `update/platform-update` | `EXPIRY_OR_REPLAY_FAILURE`, `$.verified_clock`, `freshness`, 3, reject, none | F-03; before P-01; receipt `f03.replay.v1` and digest |
+| `FIX-06` | replace one input byte with invalid UTF-8 while the dependency is missing and cache is absent, `inspect/read-only` | `PARSE_SCHEMA_FAILURE`, `$.transport.utf8`, `shape`, 3, reject, none | P-01; before P-01; receipt `p01.precedence.v1` and digest |
+| `FIX-07` | set the F-02 receipt status to `unratified` while preserving the required receipt slot, `inspect/read-only` | `DEPENDENCY_UNRATIFIED`, `dependency.check`, `dependency`, 4, hold, none | P-01; before P-01; receipt `p01.dependency.v1` and digest |
+| `FIX-08` | alter the owner proof subject, `install/platform-system` | `OWNER_PROOF_INVALID`, `$.owner_proof_receipt.subject_account_id`, `identity`, 3, reject, none | I-03; before I-03; receipt `i03.owner.v1` and digest |
+| `FIX-09` | alter the target-account binding, `install/platform-system` | `TARGET_ACCOUNT_INVALID`, `$.target_account.account_binding`, `identity`, 3, reject, none | I-03; before I-03; receipt `i03.account.v1` and digest |
+| `FIX-10` | substitute one cache entry content digest, `update/platform-update` | `CACHE_SUBSTITUTION`, `executor.preflight`, `preflight`, 3, reject, none | I-03/I-04; before I-04; receipt `i04.cache.v1` and digest |
+| `FIX-11` | remove one required cache entry, `update/platform-update` | `CACHE_MISS`, `executor.preflight`, `preflight`, 4, hold, none | I-04; before I-04; receipt `i04.offline.v1` and digest |
+| `FIX-12` | reduce available capacity below required plus reserve bytes, `install/platform-system` | `CAPACITY_INSUFFICIENT`, `executor.reserve`, `reserve`, 4, hold, journal-only | I-03; before I-03; receipt `i03.capacity.v1` and digest |
+| `FIX-13` | invoke a package primitive before final consent, `install/platform-system` | `CONSENT_MISSING`, `executor.consent`, `executor.consent`, 4, hold, none | I-03/I-04; before I-04; receipt `i04.consent.v1` and digest |
+| `FIX-14` | fetch an artifact after final consent, `update/platform-update` | `FORBIDDEN_ROUTE`, `route.authorize`, `authorize`, 2, reject, journal-only | I-04; before I-04; receipt `i04.no-network.v1` and digest |
+| `FIX-15` | change the target stable ID after reserve, `install/platform-system` | `TARGET_REVALIDATION_FAILED`, `executor.verify`, `executor.verify`, 3, reject, journal-only | I-04; before I-04; receipt `i04.target.v1` and digest |
+| `FIX-16` | call a direct leaf with a forged handle MAC, `install/platform-system` | `HANDLE_INVALID`, `admission.check`, `admission.check`, 8, reject, none | P-01/P-02; before P-01; receipt `p01.handle.v1` and digest |
+| `FIX-17` | source a copied leaf with an environment-only handle, `install/platform-system` | `FORBIDDEN_ROUTE`, `route.authorize`, `authorize`, 2, reject, none | P-01/P-02; before route gate; receipt `p01.leaf.v1` and digest |
+| `FIX-18` | select the `dev` channel, `channel-set/platform-update` | `FORBIDDEN_ROUTE`, `route.authorize`, `authorize`, 2, reject, none | P-01/P-05; before route gate; receipt `p01.channel.v1` and digest |
+| `FIX-19` | pass an arbitrary upgrade `--ref`, `upgrade/platform-system` | `FORBIDDEN_ROUTE`, `route.authorize`, `authorize`, 2, reject, none | P-01/P-05; before route gate; receipt `p01.ref.v1` and digest |
+| `FIX-20` | invoke the raw firmware/EFI primitive, `apply-hardware/platform-hardware` | `FORBIDDEN_ROUTE`, `route.authorize`, `authorize`, 2, reject, none | P-01/P-05; before route gate; receipt `p01.firmware.v1` and digest |
+| `FIX-21` | remove `OMARCHY_PATH`, `install/platform-system` | `OMARCHY_PATH_MISSING`, `route.bootstrap`, `bootstrap`, 2, reject, none | P-01; before route gate; receipt `p01.path.v1` and digest |
+| `FIX-22` | pass `../config` to refresh-config, `apply-system/platform-system` | `PATH_TRAVERSAL`, `route.parse`, `parse`, 2, reject, none | P-01; before route gate; receipt `p01.traversal.v1` and digest |
+| `FIX-23` | change a committed atomic-record counter without changing `bytes_digest`, `update/platform-update` | `TRUST_BOUNDARY_FAILURE`, `$.atomic_record.attempt_counter`, `trust`, 4, hold, none | F-02/F-03; before P-05; receipt `f02.boot.v1` and digest |
+| `FIX-24` | change the boot-success signer role, `update/platform-update` | `BOOT_MARKER_AUTH_FAILURE`, `$.boot_success.signatures[0].signer_role`, `boot.evaluate`, 4, hold, none | P-05; before F-07; receipt `p05.boot.v1` and digest |
+| `FIX-25` | reuse a transaction ID with a changed plan digest, `update/platform-update` | `DUPLICATE_TRANSACTION`, `executor.idempotence`, `idempotence`, 3, reject, journal-only | I-04; before recovery gate; receipt `i04.idempotence.v1` and digest |
+| `FIX-26` | submit a transaction ID already tombstoned, `recover/platform-update` | `TRANSACTION_TOMBSTONED`, `recovery.dispatch`, `recovery.dispatch`, 3, reject, none | I-04; before recovery gate; receipt `i04.tombstone.v1` and digest |
+| `FIX-27` | interrupt after a declared step primitive starts, `update/platform-update` | `POWER_LOSS_INTERRUPTED`, `recovery.resume`, `recovery.resume`, 4, hold, journal-only | I-04; before I-09; receipt `i04.recovery.v1` and digest |
+| `FIX-28` | add `private_key` to the support allowlist, `inspect/read-only` | `PRIVACY_FIELD_FORBIDDEN`, `diagnostics.redact`, `diagnostics.redact`, 3, reject, none | P-04; before F-06; receipt `p04.redaction.v1` and digest |
+| `FIX-29` | make local deletion proof fail after the retention deadline, `inspect/read-only` | `DELETION_FAILURE`, `diagnostics.delete`, `diagnostics.delete`, 3, reject, quarantine-only | P-04/I-08; before F-06; receipt `p04.deletion.v1` and digest |
+| `FIX-30` | make focus restoration fail during recovery, `recover/platform-update` | `ACCESSIBILITY_RECOVERY_FAILED`, `ux.recovery`, `ux.recovery`, 9, quarantined, quarantine-only | I-08; before I-09; receipt `i08.recovery-ux.v1` and digest |
+| `FIX-31` | expire the boot-health evidence before evaluation, `update/platform-update` | `EXPIRY_OR_REPLAY_FAILURE`, `admission.freshness`, `freshness`, 3, reject, journal-only | P-05; before F-07; receipt `p05.stale-health.v1` and digest |
+| `FIX-32` | publish a success marker before health evaluation, `update/platform-update` | `BOOT_MARKER_AUTH_FAILURE`, `$.boot_success.marked_at`, `boot.evaluate`, 4, hold, journal-only | P-05; before F-07; receipt `p05.premature-marker.v1` and digest |
+| `FIX-33` | lower the predecessor lineage or attempt counter, `update/platform-update` | `BOOT_COUNTER_FAILURE`, `$.boot.lineage`, `boot.lineage`, 4, hold, journal-only | F-02/F-03; before P-05; receipt `f02.lineage.v1` and digest |
+
+`FIX-27` also requires these exact interruption subcases, each materialized with its own `input_content_digest`, mutation digest, expected result, and acceptance receipt: `FIX-27-A` before consent to `aborted` with `POWER_LOSS_INTERRUPTED` and no mutation; `FIX-27-B` after consent before reserve to `aborted` with `POWER_LOSS_INTERRUPTED` and no mutation; `FIX-27-C` after reserve to `recovering` with `POWER_LOSS_INTERRUPTED` and one rollback allowance; `FIX-27-D` during applying to `recovering` with `POWER_LOSS_INTERRUPTED`; `FIX-27-E` during verifying to `recovering` with `POWER_LOSS_INTERRUPTED`; `FIX-27-F` after committed before health to `evaluating` with `POWER_LOSS_INTERRUPTED`; `FIX-27-G` during evaluating to `recovering` with `POWER_LOSS_INTERRUPTED`; `FIX-27-H` during recovering to `recovering` with `POWER_LOSS_INTERRUPTED` without incrementing `rollback_depth`; and `FIX-27-I` after one rollback requests another rollback and enters `quarantined` with `RECOVERY_RECURSION`, quarantine evidence, and tombstone. A missing executable or fixture returns `NOT_IMPLEMENTED`, never a fabricated typed rejection. The current slice has no product admission executable, broker, schemas, bindings, product fixture corpus, or product CI, so all 33 fixture families and their 9 interruption subcases remain `NOT_IMPLEMENTED`.
+
+## 13. Residual schema and owned blockers
+
+Each absent artifact is a separate residual. The residual itself has a closed schema and cannot be closed by a prose claim.
+
+```text
+Residual = {
+  residual_id: LowerAsciiToken,
+  artifact_id: ArtifactId,
+  owner: LowerAsciiToken,
+  consumer: LowerAsciiToken,
+  due_before_gate: LowerAsciiToken,
+  scope: ResidualScope,
+  required_inputs: ExactList<ArtifactId, artifact_id>,
+  acceptance_artifact_id: ArtifactId,
+  acceptance_digest_preimage_id: PreimageId,
+  acceptance_command: PathToken,
+  rejection_if_absent: ErrorCode or ResidualStatus,
+  status: "NOT_IMPLEMENTED" or "NOT_PRESENT" or "TOOLING_BLOCK" or "UNSAFE_BASELINE" or "IMPLEMENTED_AND_VERIFIED"
+}
+```
+
+The omitted collection fields are fixed by this manifest, not by table-cell inference:
+
+```text
+RESIDUAL_REQUIRED_INPUTS = {
+  RES-01:[f02.ratification.v1, f03.ratification.v1, p01.route-manifest.v1],
+  RES-02:[p01.admission-gate.v1, p01.executor-request.v1, i04.journal.v1],
+  RES-03:[f02.ratification.v1, p01.payload-registry.v1],
+  RES-04:[f02.ratification.v1, f03.ratification.v1, p01.consumer-capabilities.v1],
+  RES-05:[p01.admission-gate.v1, p02.capability-outcome.v1],
+  RES-06:[p03.parity-census.v1, p01.route-manifest.v1],
+  RES-07:[p04.privacy-policy.v1, p04.support-bundle.v1],
+  RES-08:[i03.inventory.v1, p03.installer-plan.v1, p01.final-consent.v1],
+  RES-09:[i04.executor.v1, i04.journal.v1, i04.recovery.v1],
+  RES-10:[i08.accessibility.v1, i04.recovery.v1, p04.privacy.v1],
+  RES-11:[p01.fixture-schema.v1, p01.expected-results.v1],
+  RES-12:[p01.product-ci-contract.v1, p01.route-manifest.v1],
+  RES-13:[f05.closure.v1, f06.compliance-intake.v1, f07.promotion-evidence.v1],
+  RES-14:[q00.intake.v1, q01.profile.v1, f07.promotion-evidence.v1],
+  RES-15:[p01.required-checks.v1, f07.promotion-evidence.v1]
+}
+RESIDUAL_ACCEPTANCE_COMMAND = {
+  RES-01:tests/product/admission, RES-02:tests/product/broker,
+  RES-03:tests/product/schema, RES-04:tests/product/binding,
+  RES-05:tests/product/capabilities, RES-06:tests/product/route-graph,
+  RES-07:tests/product/privacy, RES-08:tests/product/executor-plan,
+  RES-09:tests/product/executor-recovery, RES-10:tests/product/accessibility,
+  RES-11:tests/product/fixtures, RES-12:.github/workflows/product.yml,
+  RES-13:tests/product/promotion-intake, RES-14:tests/product/qualification,
+  RES-15:tests/product/branch-protection
+}
+RESIDUAL_REJECTION_IF_ABSENT = {
+  RES-01:NOT_IMPLEMENTED, RES-02:NOT_IMPLEMENTED, RES-03:DEPENDENCY_UNRATIFIED,
+  RES-04:BINDING_INTEGRITY_FAILURE, RES-05:NOT_IMPLEMENTED, RES-06:NOT_IMPLEMENTED,
+  RES-07:PRIVACY_POLICY_UNRATIFIED, RES-08:NOT_IMPLEMENTED, RES-09:NOT_IMPLEMENTED,
+  RES-10:ACCESSIBILITY_UNAVAILABLE, RES-11:NOT_IMPLEMENTED, RES-12:NOT_PRESENT,
+  RES-13:DEPENDENCY_UNRATIFIED, RES-14:NOT_PRESENT, RES-15:NOT_PRESENT
+}
+```
+
+`required_inputs`, `acceptance_artifact_id`, `acceptance_digest_preimage_id`, `acceptance_command`, `rejection_if_absent`, and `status` are read from the same residual ID in this manifest and the row below. A missing manifest member is a residual-schema failure, not an implicit empty list or acceptance.
+
+| Residual | Artifact and scope | Owner, consumer, due | Acceptance artifact and exact preimage | Current status and absence effect |
+| --- | --- | --- | --- | --- |
+| `RES-01` | `bin/omarchy-admission`, P-01 public adapter and result contract | P-01/P-02; `all-product-routes`; before P-01 | `P01.AdmissionGateReceipt/v1`, preimage `p01.admission-gate-receipt.v1` | `NOT_IMPLEMENTED`; no admission, handle, or typed route result |
+| `RES-02` | `omarchy-platform` constrained broker, every privileged edge | I-04; `all-mutators`; before P-05 | `P01.BrokerConformance/v1`, preimage `p01.broker-conformance.v1` | `NOT_IMPLEMENTED`; no package, config, firmware, DTB, APFS, or boot mutation authorized |
+| `RES-03` | canonical schemas and `schemas/schema-input.lock`, eight payloads | F-02; `all-payload-consumers`; before P-01 | `dependency-ratification/v1`, preimage `dependency-ratification.v1` | `NOT_IMPLEMENTED`; `DEPENDENCY_UNRATIFIED` before parse authority |
+| `RES-04` | generated bindings and `bindings/generated-output.lock`, Python, Swift, bounded boot | F-02/F-03; `P01-and-P05`; before P-01 | `ConsumerCapabilities`, preimage `f02.consumer-capabilities.v1` | `NOT_IMPLEMENTED`; no binding negotiation or boot constructor |
+| `RES-05` | P-02 required/optional capability result implementation | P-02; `install-and-update`; before P-02 | `P02.CapabilityOutcome/v1`, preimage `p02.capability-outcome.v1` | `NOT_IMPLEMENTED`; warning, skip, or zero exit cannot be success |
+| `RES-06` | P-03 parity census and route graph | P-03; `promotion-terminal`; before F-07 | `P03.PARITY-CENSUS.V1`, preimage `p03.parity-census.v1` | `NOT_IMPLEMENTED`; no parity acceptance |
+| `RES-07` | P-04 diagnostics and redacted support export | P-04; `diagnostics-and-promotion`; before F-06 | `P04.PRIVACY.V1`, preimage `p04.privacy.v1` | `NOT_IMPLEMENTED`; no bundle or upload is evidence |
+| `RES-08` | I-03 inventory, target IDs, capacity, cache, consent, plan | I-03; `I03-I04`; before I-03 | `I03.ExecutorPlan/v1`, preimage `i03.executor-plan.v1` | `NOT_IMPLEMENTED`; no irreversible handoff |
+| `RES-09` | I-04 journal, executor, interruption, rollback, and closure | I-04; `I04-P05-I09`; before I-04 | `P01.ExecutorResult/v1`, preimage `p01.executor-result.v1` | `NOT_IMPLEMENTED`; no mutation, resume, rollback, or close |
+| `RES-10` | accessible/localized native and CLI recovery UX | I-08; `I08-P04-I04`; before I-08 | `I08.AccessibilityReceipt/v1`, preimage `i08.accessibility-receipt.v1` | `NOT_IMPLEMENTED`; post-consent recovery cannot be assumed accessible |
+| `RES-11` | hostile fixture corpus and mutation-detection runner | P-02 and CI owner; `all-seams`; before P-02 | `P02.FixtureCorpusReceipt/v1`, preimage `p02.fixture-corpus.v1` | `NOT_IMPLEMENTED`; no hostile rejection is executable |
+| `RES-12` | product-specific CI workflow and clean-checkout gate | CI owner; `P01-P05-integration`; before integration | `.github/workflows/product.yml`, preimage `p01.product-ci.v1` | `NOT_PRESENT`; design is not enforced |
+| `RES-13` | F-05, F-06, F-07, P-05, I-09, B-04, Q-04 through Q-08 closure receipts | respective owners; `promotion-terminal`; before promotion | `F06.COMPLIANCE-INTAKE.V1` and `F07.PROMOTION-EVIDENCE.V1`, preimage `f07.promotion-intake.v1` | `NOT_PRESENT`; no promotion or release evidence |
+| `RES-14` | physical qualification for each exact board/profile plus clean install, boot, update, interruption, rollback, and recovery | qualification owners and lab; `qualification-and-release`; before qualification or release | `Q.PhysicalQualificationBundle/v1`, preimage `q.qualification-bundle.v1` | `NOT_PRESENT`; no compatibility, support, qualification, or release claim |
+| `RES-15` | branch protection and required checks | repository owner and coordinator; `merge-and-promotion`; before merge or promotion | `Repository.RequiredChecksReceipt/v1`, preimage `repository.required-checks.v1` | `NOT_PRESENT`; PR remains draft and merge/promotion is blocked |
+
+## 14. Executable artifact and CI expectations
+
+The following are required future artifacts, not present artifacts:
+
+```text
+bin/omarchy-admission
+omarchy-platform
+schemas/schema-input.lock
+schemas/common/v1/common.schema.json
+schemas/signed-document/v1/signed-document.schema.json
+schemas/board-registry/v1/board-registry.schema.json
+schemas/platform-manifest/v1/platform-manifest.schema.json
+schemas/installer-plan/v1/installer-plan.schema.json
+schemas/qualification-record/v1/qualification-record.schema.json
+schemas/boot-health/v1/boot-health.schema.json
+schemas/owner-approval/v1/owner-approval.schema.json
+schemas/boot-success-mark/v1/boot-success-mark.schema.json
+schemas/dtb-mutation-envelope/v1/dtb-mutation-envelope.schema.json
+bindings/generated-output.lock
+fixtures/accepted/
+fixtures/hostile/
+fixtures/canonicalization/
+tests/product/
+.github/workflows/product.yml
+```
+
+The product workflow must run from a clean checkout and fail closed on: schema and JCS vectors, exact payload set, two-lock acyclic binding graph, ConsumerCapabilities equality, Trusted constructor misuse, F-02 error preservation, admission result totality, owner proof and target account, route graph source-set digest, every privileged edge, missing path and environment fallback, capacity arithmetic, cache substitution, pre- and post-consent network, target swap, skipped required package, journal chain, duplicate transaction, monotonic lineage, tombstone and closure, all fixture boundary parameters, privacy redaction and deletion, keyboard and screen-reader recovery, F-06/F-07 handoffs, and generated drift.
+
+Unavailable `dtc`, `dt-validate`, Sphinx/docutils, full JCS tooling, or any required schema verifier is `TOOLING_BLOCK`, never a successful validation. A product executable that is absent, returns 127, or cannot produce the typed result is `NOT_IMPLEMENTED`, never a typed rejection. Branch protection must require the product workflow, generated drift, fixture, and clean-checkout reports before merge or promotion.
+
+## 15. Baseline, gating, and completion honesty
+
+The current base commands and routes are not repaired by this document. Known baseline failures remain separately tracked: macOS Bash 3.2 associative-array and command-check failures, shell-suite/runtime incompatibilities and failures, and an aggregate suite that did not complete in the prior bounded run. Syntax-only success is not runtime or product-contract evidence. The base route observations in section 8.2 remain live unsafe behavior until implementation and hostile tests prove otherwise.
+
+F-02 and F-03 remain gating because no ratified schema, trust root, generated binding, exact constructor, or authority receipt exists. F-06 and F-07 remain gating because no ratified compliance/promotion intake, signed evidence, or sole-writer promotion terminal exists. Physical qualification remains gating because no exact board/profile physical evidence bundle exists. I-03, I-04, P-02, P-03, P-04, P-05, I-08, I-09, CI, and branch protection remain residuals above.
+
+This document explicitly makes no implementation, compatibility, support, qualification, physical-success, stable-promotion, or release-readiness claim. The product routes remain unimplemented/unsafe relative to this contract. No slice or program is DONE. Completion of this documentation correction is established only by external review of the single pushed commit and its verification state; this file never self-marks completion.
