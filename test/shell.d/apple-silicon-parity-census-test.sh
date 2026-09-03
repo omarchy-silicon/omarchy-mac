@@ -112,6 +112,9 @@ cp "$baseline_manifest" "$manifest"
 cp "$baseline_queue" "$queue"
 entry_id=$(jq -r '.entries[0].id' "$manifest")
 receipt=$(jq -r '.entries[0].evidence.reference' "$manifest")
+jq --arg id "$entry_id-attacker" --arg evidence "$receipt" '.items[0].acceptance.command = "python3 tools/apple-silicon/parity-census.py accept-entry --id \($id) --evidence \($evidence)"' "$queue" >"$queue.tmp" && mv "$queue.tmp" "$queue"
+expect_fail "substring entry ID in acceptance command is rejected" check
+cp "$baseline_queue" "$queue"
 verify=(python3 "$fixture/tools/apple-silicon/parity-census.py" --root "$fixture" verify-entry --id "$entry_id" --evidence "$receipt")
 expect_fail "absent receipt is rejected" "${verify[@]}"
 python3 -c 'import hashlib,json,os,subprocess,sys; m,root,r=sys.argv[1:]; d=json.load(open(m)); e=d["entries"][0]; digest=lambda x: hashlib.sha256(subprocess.check_output(["git","-C",root,"show",":"+x])).hexdigest(); os.makedirs(os.path.dirname(os.path.join(root,r)),exist_ok=True); json.dump({"entry_id":e["id"],"disposition":e["disposition"],"architecture":"aarch64","command":"probe "+e["id"],"exit_status":1,"observed_behavior":"probe is pending","source_digests":[{"path":s["path"],"sha256":digest(s["path"])} for s in e["sources"]],"test_evidence":{"path":"test/shell.d/aarch64-compat-test.sh","sha256":digest("test/shell.d/aarch64-compat-test.sh")},"recorded_at":"2026-09-03T00:00:00Z","reviewer":"reviewer","owner":e["owner"]},open(os.path.join(root,r),"w"),indent=2); e["evidence"]={"kind":"receipt","reference":r}; json.dump(d,open(m,"w"),indent=2)' "$manifest" "$fixture" "$receipt"

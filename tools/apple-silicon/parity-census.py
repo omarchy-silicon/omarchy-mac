@@ -201,13 +201,17 @@ def discover(root: Path) -> list[dict[str, Any]]:
     return [entries[key] for key in sorted(entries)]
 
 
+def acceptance_command(entry_id: str, evidence: str) -> str:
+    return f"python3 tools/apple-silicon/parity-census.py accept-entry --id {shlex.quote(entry_id)} --evidence {shlex.quote(evidence)}"
+
+
 def queue_for(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     items = []
     for entry in entries:
         if entry["disposition"] != "blocked":
             continue
         expected = entry["evidence"]["reference"]
-        items.append({"id": entry["queue_id"], "owner": entry["owner"], "dependency": "ARM package/runtime behavior and a reviewed receipt", "next_action": f"Run the exact ARM probe for {entry['id']} and save its receipt.", "acceptance": {"command": f"python3 tools/apple-silicon/parity-census.py accept-entry --id {shlex.quote(entry['id'])} --evidence {shlex.quote(expected)}", "evidence": expected}, "status": "planned"})
+        items.append({"id": entry["queue_id"], "owner": entry["owner"], "dependency": "ARM package/runtime behavior and a reviewed receipt", "next_action": f"Run the exact ARM probe for {entry['id']} and save its receipt.", "acceptance": {"command": acceptance_command(entry["id"], expected), "evidence": expected}, "status": "planned"})
     return sorted(items, key=lambda item: item["id"])
 
 
@@ -394,7 +398,8 @@ def validate(root: Path, manifest_path: Path, queue_path: Path) -> tuple[list[st
             if item.get("status") == "complete" and entry.get("disposition") == "blocked":
                 errors.append(f"{label} cannot be complete while entry is blocked")
             acceptance = item.get("acceptance")
-            if not isinstance(acceptance, dict) or set(acceptance) != ACCEPTANCE_KEYS or not isinstance(acceptance.get("command"), str) or "accept-entry" not in acceptance["command"] or entry["id"] not in acceptance["command"]:
+            expected_command = acceptance_command(entry["id"], entry.get("evidence", {}).get("reference", ""))
+            if not isinstance(acceptance, dict) or set(acceptance) != ACCEPTANCE_KEYS or acceptance.get("command") != expected_command:
                 errors.append(f"{label}.acceptance.command must name exact entry")
             if isinstance(acceptance, dict) and acceptance.get("evidence") != entry.get("evidence", {}).get("reference"):
                 errors.append(f"{label}.acceptance.evidence must match entry receipt path")
@@ -494,7 +499,7 @@ def accept_entry(root: Path, manifest_path: Path, queue_path: Path, entry_id: st
         raise CensusError(f"accept-entry requires exactly one queue row: {entry_id}")
     item = matching_items[0]
     acceptance = item.get("acceptance", {})
-    if not isinstance(acceptance, dict) or entry_id not in acceptance.get("command", "") or acceptance.get("evidence") != receipt_path:
+    if not isinstance(acceptance, dict) or acceptance.get("command") != acceptance_command(entry_id, receipt_path) or acceptance.get("evidence") != receipt_path:
         raise CensusError("accept-entry queue acceptance does not bind the exact receipt")
     receipt = validate_receipt(root, tracked, entry, receipt_path, transition=True)
     updated_manifest = copy.deepcopy(manifest)
