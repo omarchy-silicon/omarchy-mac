@@ -57,7 +57,16 @@ mkdir -p "$export_dir"
 (cd "$export_dir" && "$command" --input "$test_tmp/valid.json" --output support.json >stdout)
 [[ -f "$export_dir/support.json" ]] || fail "local export creates the requested file"
 cmp -s "$export_dir/support.json" "$export_dir/stdout" || fail "local export bytes match stdout"
-[[ $(stat -f '%Lp' "$export_dir/support.json" 2>/dev/null || stat -c '%a' "$export_dir/support.json") == "600" ]] || fail "local export is mode 0600"
+if ! python3 - "$export_dir/support.json" <<'PY'
+import os
+import stat
+import sys
+
+assert stat.S_IMODE(os.stat(sys.argv[1]).st_mode) == 0o600
+PY
+then
+  fail "local export is mode 0600"
+fi
 cp "$export_dir/support.json" "$test_tmp/export-before"
 set +e
 (cd "$export_dir" && "$command" --input "$test_tmp/valid.json" --output support.json >second-output)
