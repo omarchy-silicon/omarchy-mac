@@ -80,13 +80,22 @@ printf ' ' >>"$fixture/platform/apple-silicon/board-registry-projection.json"
 printf '{"x":1}' >>"$fixture/platform/apple-silicon/board-registry-projection.json"
 assert_error "trailing JSON data is rejected" TRAILING_DATA
 cp "$projection" "$fixture/platform/apple-silicon/board-registry-projection.json"
-python3 - "$fixture/platform/apple-silicon/board-registry-projection.json" <<'PY'
+for nesting in 20 10000 20000; do
+  python3 - "$fixture/platform/apple-silicon/board-registry-projection.json" "$nesting" <<'PY'
 from pathlib import Path
 import sys
 path = Path(sys.argv[1])
-path.write_bytes(b'{"x":' + b'[' * 20 + b'0' + b']' * 20 + b'}')
+nesting = int(sys.argv[2])
+path.write_bytes(b'{"x":' + b'[' * nesting + b'0' + b']' * nesting + b'}')
 PY
-assert_error "deep JSON is rejected" DEPTH_LIMIT
+  assert_error "deep JSON (${nesting} levels) is rejected" DEPTH_LIMIT
+done
+cp "$projection" "$fixture/platform/apple-silicon/board-registry-projection.json"
+printf '%s\n' '{"projection_id":"apple:j313","projection_id":"apple:j313"}' >"$fixture/platform/apple-silicon/board-registry-projection.json"
+assert_error "duplicate JSON keys are rejected" DUPLICATE_KEY
+cp "$projection" "$fixture/platform/apple-silicon/board-registry-projection.json"
+jq --arg value '{[escaped] "quotes"}' '.payload.unexpected=$value' "$projection" >"$fixture/platform/apple-silicon/board-registry-projection.json"
+assert_error "braces and escaped quotes inside strings are not counted" UNKNOWN_FIELD
 cp "$projection" "$fixture/platform/apple-silicon/board-registry-projection.json"
 python3 - "$fixture/platform/apple-silicon/board-registry-projection.json" <<'PY'
 from pathlib import Path
@@ -95,9 +104,6 @@ path = Path(sys.argv[1])
 path.write_bytes(path.read_bytes() + b' ' * (64 * 1024))
 PY
 assert_error "oversize JSON is rejected" SIZE_LIMIT
-cp "$projection" "$fixture/platform/apple-silicon/board-registry-projection.json"
-printf '%s\n' '{"projection_id":"apple:j313","projection_id":"apple:j313"}' >"$fixture/platform/apple-silicon/board-registry-projection.json"
-assert_error "duplicate JSON keys are rejected" DUPLICATE_KEY
 cp "$projection" "$fixture/platform/apple-silicon/board-registry-projection.json"
 jq '.source.commit="0000000000000000000000000000000000000000000000000000000000000000"' "$lock" >"$fixture/platform/apple-silicon/board-registry-projection.lock.json"
 assert_error "provenance lock mismatch is rejected" PROVENANCE_MISMATCH
@@ -131,10 +137,17 @@ assert_error_with_path() {
   [[ $(jq -r '.error.code' <<<"$result") == "$expected" ]] || fail "$label" "expected $expected, got $result"
   pass "$label"
 }
+missing_compatible="$test_root/missing-compatible"
+if OMARCHY_PATH="$fixture" timeout 2 "$fixture/bin/omarchy-hw-apple-platform-admission" --compatible "$missing_compatible" >/dev/null 2>&1; then
+  fail "missing compatible path is rejected without blocking"
+fi
+missing_result=$(OMARCHY_PATH="$fixture" "$fixture/bin/omarchy-hw-apple-platform-admission" --compatible "$missing_compatible" 2>&1 || true)
+[[ $(jq -r '.error.code' <<<"$missing_result") == COMPATIBLE_READ_FAILED ]] || fail "missing compatible path has a typed error" "$missing_result"
+pass "missing compatible path is rejected without blocking"
 assert_error_with_path "compatible directory is rejected" COMPATIBLE_NOT_REGULAR "$compatible_directory"
 mkfifo "$test_tmp/compatible-fifo"
 fifo_path="$(realpath "$test_tmp/compatible-fifo")"
-if timeout 2 "$fixture/bin/omarchy-hw-apple-platform-admission" --compatible "$fifo_path" >/dev/null 2>&1; then
+if OMARCHY_PATH="$fixture" timeout 2 "$fixture/bin/omarchy-hw-apple-platform-admission" --compatible "$fifo_path" >/dev/null 2>&1; then
   fail "compatible FIFO is rejected without blocking"
 fi
 pass "compatible FIFO is rejected without blocking"

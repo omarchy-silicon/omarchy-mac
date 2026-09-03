@@ -78,6 +78,29 @@ def check_tree(value: Any, path: str = "$", depth: int = 0) -> None:
             check_tree(child, child_path, depth + 1)
 
 
+def scan_depth(text: str, path: str) -> None:
+    """Bound structural nesting before json.loads can recurse over it."""
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > MAX_DEPTH:
+                fail("DEPTH_LIMIT", path, "JSON nesting exceeds the bounded limit")
+        elif character in "]}":
+            depth -= 1
+
+
 def parse_json(data: bytes, path: str) -> Any:
     if len(data) > MAX_JSON_BYTES:
         fail("SIZE_LIMIT", path, "JSON input exceeds the bounded size limit")
@@ -85,6 +108,7 @@ def parse_json(data: bytes, path: str) -> Any:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
         fail("MALFORMED_JSON", path, "input is not UTF-8 JSON")
+    scan_depth(text, path)
 
     def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
