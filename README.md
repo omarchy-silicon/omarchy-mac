@@ -6,7 +6,7 @@ Omarchy 4 on Apple Silicon, alongside macOS: the Omarchy Silicon integration is 
 
 **Support status:** no Apple Silicon board is currently supported or qualified, and no supported clean installer or release is shipped. Hardware and setup references below describe development targets, not compatibility or installability.
 
-[![License](https://img.shields.io/github/license/omarchy-silicon/omarchy-mac)](LICENSE) [![Stars](https://img.shields.io/github/stars/omarchy-silicon/omarchy-mac?style=social)](https://github.com/omarchy-silicon/omarchy-mac/stargazers)
+[![License](https://img.shields.io/github/license/omarchy-silicon/omarchy-mac)](LICENSE) [![Stars](https://img.shields.io/github/stars/omarchy-silicon/omarchy-mac?style=social)](https://github.com/omarchy-silicon/omarchy-mac)
 
 Already running Omarchy 3.x? The historical upgrade notes are retained for
 reference only; no supported upgrade or clean-install path is currently
