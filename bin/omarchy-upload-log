@@ -4,6 +4,11 @@
 # omarchy:args=<log-file>
 # omarchy:hidden=true
 
+if [[ $(/usr/bin/uname -m) == "aarch64" ]]; then
+  printf '%s\n' 'Apple Silicon log upload is disabled; run `omarchy debug platform` for a redacted bundle.' >&2
+  exit 3
+fi
+
 LOG_TYPE="${1:-install}"
 TEMP_LOG="/tmp/upload-log.txt"
 SYSTEM_INFO="/tmp/system-info.txt"
