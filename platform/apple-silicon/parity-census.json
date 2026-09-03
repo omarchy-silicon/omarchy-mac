@@ -5112,6 +5112,24 @@
       "notes": "ARM parity receipt is pending; source presence is not evidence of parity."
     },
     {
+      "id": "command:omarchy-debug-platform",
+      "kind": "command",
+      "sources": [
+        {
+          "kind": "command",
+          "path": "bin/omarchy-debug-platform"
+        }
+      ],
+      "disposition": "blocked",
+      "evidence": {
+        "kind": "pending",
+        "reference": "platform/apple-silicon/evidence/command__omarchy-debug-platform.json"
+      },
+      "owner": "platform-team",
+      "queue_id": "P03-command-omarchy-debug-platform",
+      "notes": "ARM parity receipt is pending; source presence is not evidence of parity."
+    },
+    {
       "id": "command:omarchy-default-agent",
       "kind": "command",
       "sources": [

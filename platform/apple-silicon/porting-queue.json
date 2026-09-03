@@ -3115,6 +3115,17 @@
       "status": "planned"
     },
     {
+      "id": "P03-command-omarchy-debug-platform",
+      "owner": "platform-team",
+      "dependency": "ARM package/runtime behavior and a reviewed receipt",
+      "next_action": "Run the exact ARM probe for command:omarchy-debug-platform and save its receipt.",
+      "acceptance": {
+        "command": "python3 tools/apple-silicon/parity-census.py accept-entry --id command:omarchy-debug-platform --evidence platform/apple-silicon/evidence/command__omarchy-debug-platform.json",
+        "evidence": "platform/apple-silicon/evidence/command__omarchy-debug-platform.json"
+      },
+      "status": "planned"
+    },
+    {
       "id": "P03-command-omarchy-default-agent",
       "owner": "platform-team",
       "dependency": "ARM package/runtime behavior and a reviewed receipt",

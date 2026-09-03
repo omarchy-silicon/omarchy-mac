@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+
+# omarchy:group=debug
+# omarchy:summary=Print a redacted Apple platform support bundle.
+# omarchy:args=[--input <file>] [--output <file>] [--upload]
+# omarchy:examples=omarchy debug platform
+
+"""Project a P-02 capability result into a deterministic local support bundle."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import secrets
+import stat
+import sys
+from typing import Any
+
+
+MAX_BYTES = 64 * 1024
+MAX_DEPTH = 16
+SCHEMA = "omarchy.platform-support-bundle/v1"
+INPUT_CODES = {"CAPABILITY_VALID", "REQUIRED_CAPABILITY_UNAVAILABLE"}
+RESULT_CODES = {
+    "CAPABILITY_VALID",
+    "OPTIONAL_CAPABILITY_UNAVAILABLE",
+    "NOT_APPLICABLE",
+    "REQUIRED_CAPABILITY_UNAVAILABLE",
+}
+ID_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+
+class BundleError(Exception):
+    """A safe, typed input or export failure."""
+
+
+class LocalWriteError(BundleError):
+    """The requested local export could not be completed safely."""
+
+
+def digest(data: bytes) -> str:
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def canonical(value: Any) -> bytes:
+    try:
+        return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("ascii")
+    except (TypeError, UnicodeEncodeError, ValueError) as error:
+        raise BundleError("canonical support projection failed") from error
+
+
+def error_result(code: str) -> dict[str, object]:
+    return {"result_schema": SCHEMA, "code": code, "process_status": 3 if code != "UPLOAD_CONSENT_MISSING" else 4, "decision": "reject" if code != "UPLOAD_CONSENT_MISSING" else "hold"}
+
+
+def emit(value: dict[str, object]) -> int:
+    try:
+        print(json.dumps(value, ensure_ascii=True, separators=(",", ":")))
+    except (UnicodeEncodeError, OSError):
+        return 3
+    if "process_status" in value:
+        return int(value["process_status"])
+    aggregate = value.get("aggregate")
+    if isinstance(aggregate, dict) and "process_status" in aggregate:
+        return int(aggregate["process_status"])
+    return 3
+
+
+def read_bounded(path: str) -> bytes:
+    if path == "-":
+        stream = sys.stdin.buffer
+        data = stream.read(MAX_BYTES + 1)
+        if len(data) > MAX_BYTES:
+            raise BundleError("input exceeds the size limit")
+        return data
+    try:
+        file_descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0))
+        try:
+            stat_result = os.fstat(file_descriptor)
+            if not stat.S_ISREG(stat_result.st_mode):
+                raise BundleError("input is not a regular file")
+            if stat_result.st_size > MAX_BYTES:
+                raise BundleError("input exceeds the size limit")
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                chunk = os.read(file_descriptor, min(8192, MAX_BYTES + 1 - total))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+                if total > MAX_BYTES:
+                    raise BundleError("input exceeds the size limit")
+            return b"".join(chunks)
+        finally:
+            os.close(file_descriptor)
+    except BundleError:
+        raise
+    except (OSError, ValueError):
+        raise BundleError("input cannot be read")
+
+
+def strict_json(data: bytes) -> Any:
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise BundleError("input is not UTF-8") from error
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > MAX_DEPTH:
+                raise BundleError("input exceeds the nesting limit")
+        elif character in "]}":
+            depth -= 1
+            if depth < 0:
+                raise BundleError("input has malformed nesting")
+    if in_string or depth != 0:
+        raise BundleError("input has malformed nesting")
+
+    def duplicate_keys(items: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in items:
+            if key in result:
+                raise BundleError("input has duplicate fields")
+            result[key] = value
+        return result
+
+    def reject_number(_: str) -> Any:
+        raise BundleError("input contains an unsupported number")
+
+    try:
+        start = len(text) - len(text.lstrip())
+        value, end = json.JSONDecoder(object_pairs_hook=duplicate_keys, parse_int=reject_number, parse_float=reject_number, parse_constant=reject_number).raw_decode(text, start)
+    except BundleError:
+        raise
+    except (json.JSONDecodeError, RecursionError, TypeError, ValueError) as error:
+        raise BundleError("input is malformed JSON") from error
+    if text[end:].strip():
+        raise BundleError("input has trailing data")
+    return value
+
+
+def valid_digest(value: Any) -> bool:
+    return isinstance(value, str) and DIGEST_RE.fullmatch(value) is not None and len(set(value.split(":", 1)[1])) > 1
+
+
+def validate_aggregate(value: Any) -> tuple[str, list[dict[str, object]]]:
+    if not isinstance(value, dict) or set(value) != {"code", "results", "evidence_digest"}:
+        raise BundleError("aggregate has unknown or missing fields")
+    if not isinstance(value["code"], str) or value["code"] not in INPUT_CODES:
+        raise BundleError("aggregate code is invalid")
+    results = value["results"]
+    if not isinstance(results, list) or not results:
+        raise BundleError("aggregate results are empty or invalid")
+    if not valid_digest(value["evidence_digest"]):
+        raise BundleError("aggregate digest is invalid")
+    if digest(canonical(results)) != value["evidence_digest"]:
+        raise BundleError("aggregate digest does not match results")
+
+    projected: list[dict[str, object]] = []
+    previous = ""
+    required_failure = False
+    for item in results:
+        if not isinstance(item, dict) or set(item) != {"capability_id", "required", "observed", "code", "evidence_digest"}:
+            raise BundleError("capability result has unknown or missing fields")
+        identifier = item["capability_id"]
+        required = item["required"]
+        observed = item["observed"]
+        code = item["code"]
+        if not isinstance(identifier, str) or ID_RE.fullmatch(identifier) is None or identifier <= previous:
+            raise BundleError("capability IDs are invalid or unsorted")
+        previous = identifier
+        if type(required) is not bool or type(observed) is not bool or not isinstance(code, str) or code not in RESULT_CODES:
+            raise BundleError("capability result types are invalid")
+        if not valid_digest(item["evidence_digest"]):
+            raise BundleError("capability digest is invalid")
+        valid = (code == "CAPABILITY_VALID" and observed) or (code == "OPTIONAL_CAPABILITY_UNAVAILABLE" and not required and not observed) or (code == "NOT_APPLICABLE" and not required and not observed) or (code == "REQUIRED_CAPABILITY_UNAVAILABLE" and required and not observed)
+        if not valid:
+            raise BundleError("capability result binding is invalid")
+        if code == "REQUIRED_CAPABILITY_UNAVAILABLE":
+            required_failure = True
+        if code == "CAPABILITY_VALID":
+            status = "valid"
+        elif code == "NOT_APPLICABLE":
+            status = "not-applicable"
+        else:
+            status = "unavailable"
+        projected.append({"id": identifier, "status": status, "code": code, "evidence_digest": item["evidence_digest"]})
+
+    expected_code = "REQUIRED_CAPABILITY_UNAVAILABLE" if required_failure else "CAPABILITY_VALID"
+    if value["code"] != expected_code:
+        raise BundleError("aggregate code does not match capability results")
+    return expected_code, projected
+
+
+def bundle_for(code: str, capabilities: list[dict[str, object]]) -> dict[str, object]:
+    process_status = 3 if code == "REQUIRED_CAPABILITY_UNAVAILABLE" else 0
+    projection: dict[str, object] = {
+        "result_schema": SCHEMA,
+        "adapter": "omarchy-hw-capability-outcome",
+        "operation": "platform-support",
+        "scope": "apple-silicon",
+        "route": "omarchy debug platform",
+        "aggregate": {"code": code, "process_status": process_status, "decision": "reject" if process_status else "allow"},
+        "capabilities": capabilities,
+    }
+    projection["content_digest"] = digest(canonical(projection))
+    return projection
+
+
+def safe_output_name(name: str) -> bool:
+    try:
+        name.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name)) and name not in {".", ".."}
+
+
+def export_once(data: bytes, name: str) -> None:
+    if not safe_output_name(name):
+        raise LocalWriteError("output must be one safe relative filename")
+    try:
+        directory_fd = os.open(".", os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0))
+    except OSError as error:
+        raise LocalWriteError("local bundle directory cannot be opened") from error
+    temporary_fd = -1
+    temporary_name = ""
+    committed = False
+    try:
+        try:
+            os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            raise LocalWriteError("output already exists")
+        except FileNotFoundError:
+            pass
+        for _ in range(16):
+            temporary_name = ".omarchy-debug-platform." + secrets.token_hex(16)
+            try:
+                temporary_fd = os.open(temporary_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=directory_fd)
+                break
+            except FileExistsError:
+                continue
+        if temporary_fd < 0:
+            raise LocalWriteError("could not reserve a local bundle name")
+        os.fchmod(temporary_fd, 0o600)
+        with os.fdopen(temporary_fd, "wb") as temporary:
+            temporary_fd = -1
+            temporary.write(data)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.link(temporary_name, name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
+        committed = True
+        try:
+            os.unlink(temporary_name, dir_fd=directory_fd)
+            temporary_name = ""
+        except OSError as error:
+            cleaned = False
+            for _ in range(3):
+                try:
+                    os.unlink(temporary_name, dir_fd=directory_fd)
+                    temporary_name = ""
+                    cleaned = True
+                    break
+                except OSError:
+                    continue
+            if not cleaned:
+                try:
+                    os.unlink(name, dir_fd=directory_fd)
+                except OSError:
+                    pass
+                committed = False
+                raise LocalWriteError("local bundle cleanup failed") from error
+        try:
+            os.fsync(directory_fd)
+        except OSError:
+            # The file is still complete and addressable even if directory
+            # durability is unavailable on this filesystem.
+            pass
+    except FileExistsError as error:
+        raise LocalWriteError("output already exists") from error
+    except (OSError, ValueError) as error:
+        raise LocalWriteError("local bundle write failed") from error
+    finally:
+        if temporary_fd >= 0:
+            try:
+                os.close(temporary_fd)
+            except OSError:
+                pass
+        if temporary_name and not committed:
+            try:
+                os.unlink(temporary_name, dir_fd=directory_fd)
+            except OSError:
+                pass
+        try:
+            os.close(directory_fd)
+        except OSError:
+            pass
+
+
+class TypedArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise BundleError("invalid command arguments")
+
+
+def main() -> int:
+    parser = TypedArgumentParser(add_help=True)
+    parser.add_argument("--input", default="-")
+    parser.add_argument("--output")
+    parser.add_argument("--upload", action="store_true")
+    try:
+        args = parser.parse_args()
+        if args.upload:
+            return emit(error_result("UPLOAD_CONSENT_MISSING"))
+        if args.output is not None and not isinstance(args.output, str):
+            raise LocalWriteError("invalid output")
+        if args.input == "-" and sys.stdin.isatty():
+            raise BundleError("input is required")
+        aggregate = strict_json(read_bounded(args.input))
+        code, capabilities = validate_aggregate(aggregate)
+        bundle = bundle_for(code, capabilities)
+        encoded = (json.dumps(bundle, ensure_ascii=True, separators=(",", ":")) + "\n").encode("ascii")
+        if args.output is not None:
+            export_once(encoded, args.output)
+        return emit(bundle)
+    except LocalWriteError:
+        return emit(error_result("LOCAL_BUNDLE_WRITE_FAILURE"))
+    except (BundleError, OSError, UnicodeError, TypeError, ValueError, RuntimeError):
+        return emit(error_result("SUPPORT_BUNDLE_REDACTION_FAILED"))
+
+
+if __name__ == "__main__":
+    sys.exit(main())
