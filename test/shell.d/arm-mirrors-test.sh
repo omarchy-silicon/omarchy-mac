@@ -33,3 +33,77 @@ if ! grep -Fxq 'http://us.mirror.archlinuxarm.org/aarch64/core' "$ARM_MIRROR_TES
   fail "mirror connectivity expands the ARM path" "curl args:\n$(cat "$ARM_MIRROR_TEST_LOG")"
 fi
 pass "mirror connectivity expands the ARM path"
+
+mirrorlist="$test_tmp/mirrorlist"
+sandbox_helper="$test_tmp/set-arm-mirrors.sh"
+sed "s#MIRRORLIST_FILE=\"/etc/pacman.d/mirrorlist\"#MIRRORLIST_FILE=\"$mirrorlist\"#" "$helper" >"$sandbox_helper"
+chmod +x "$sandbox_helper"
+
+cat >"$mock_bin/sudo" <<'SH'
+#!/bin/bash
+
+if [[ $1 == "tee" ]]; then
+  exit 3
+fi
+exec "$@"
+SH
+chmod +x "$mock_bin/sudo"
+
+set +e
+PATH="$mock_bin:$PATH" "$sandbox_helper" --test --force >"$test_tmp/write-result" 2>&1
+mirror_status=$?
+set -e
+[[ $mirror_status -eq 3 ]] || fail "mirrorlist write failure stays nonzero" "$(cat "$test_tmp/write-result")"
+[[ ! -e $mirrorlist ]] || fail "failed mirrorlist write does not report success"
+pass "mirrorlist write failure stays nonzero"
+
+cat >"$mock_bin/sudo" <<'SH'
+#!/bin/bash
+
+if [[ $1 == "pacman" ]]; then
+  exit 3
+fi
+exec "$@"
+SH
+chmod +x "$mock_bin/sudo"
+
+set +e
+PATH="$mock_bin:$PATH" "$sandbox_helper" --test --force >"$test_tmp/refresh-result" 2>&1
+mirror_status=$?
+set -e
+[[ $mirror_status -eq 3 ]] || fail "package database refresh failure stays nonzero" "$(cat "$test_tmp/refresh-result")"
+pass "package database refresh failure stays nonzero"
+
+cat >"$mock_bin/uname" <<'SH'
+#!/bin/bash
+
+printf '%s\n' x86_64
+SH
+chmod +x "$mock_bin/uname"
+direct_output=$(PATH="$mock_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_INSTALL="$ROOT/install" bash "$ROOT/install/preflight/arm-mirrors.sh")
+[[ $(printf '%s\n' "$direct_output" | wc -l | tr -d ' ') -eq 1 ]] || fail "direct ARM preflight emits one terminal outcome" "$direct_output"
+printf '%s\n' "$direct_output" | grep -Fq '"code":"NOT_APPLICABLE"' || fail "direct ARM preflight is typed not applicable" "$direct_output"
+pass "direct ARM preflight emits one terminal outcome"
+
+preflight_install="$test_tmp/preflight-install"
+missing_emitter_root="$test_tmp/missing-emitter"
+mirror_mutation="$test_tmp/mirror-mutation"
+mkdir -p "$preflight_install/helpers" "$missing_emitter_root"
+cp "$ROOT/install/helpers/capability-outcomes.sh" "$preflight_install/helpers/"
+cat >"$preflight_install/helpers/set-arm-mirrors.sh" <<'SH'
+#!/bin/bash
+
+touch "$ARM_PREFLIGHT_MUTATION"
+SH
+chmod +x "$preflight_install/helpers/set-arm-mirrors.sh"
+set +e
+PATH="$mock_bin:$PATH" \
+  ARM_PREFLIGHT_MUTATION="$mirror_mutation" \
+  OMARCHY_PATH="$missing_emitter_root" \
+  OMARCHY_INSTALL="$preflight_install" \
+  bash "$ROOT/install/preflight/arm-mirrors.sh" >"$test_tmp/missing-emitter-result" 2>&1
+mirror_status=$?
+set -e
+[[ $mirror_status -ne 0 ]] || fail "missing capability emitter rejects ARM preflight"
+[[ ! -e $mirror_mutation ]] || fail "missing capability emitter blocks the ARM mirror mutator"
+pass "missing capability emitter blocks ARM mirror mutation"

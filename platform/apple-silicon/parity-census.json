@@ -5796,6 +5796,24 @@
       "notes": "ARM parity receipt is pending; source presence is not evidence of parity."
     },
     {
+      "id": "command:omarchy-hw-capability-outcome",
+      "kind": "command",
+      "sources": [
+        {
+          "kind": "command",
+          "path": "bin/omarchy-hw-capability-outcome"
+        }
+      ],
+      "disposition": "blocked",
+      "evidence": {
+        "kind": "pending",
+        "reference": "platform/apple-silicon/evidence/command__omarchy-hw-capability-outcome.json"
+      },
+      "owner": "platform-team",
+      "queue_id": "P03-command-omarchy-hw-capability-outcome",
+      "notes": "ARM parity receipt is pending; source presence is not evidence of parity."
+    },
+    {
       "id": "command:omarchy-hw-clamshell",
       "kind": "command",
       "sources": [

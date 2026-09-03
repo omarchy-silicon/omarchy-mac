@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+
+# omarchy:group=hw
+# omarchy:hidden=true
+# omarchy:summary=Emit a typed capability installation result.
+# omarchy:args=--capability-id <id> --required <true|false> --observed <true|false> --code <code> --evidence <text>
+
+"""Emit the closed, deterministic capability result used by install leaves."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+import sys
+from typing import Any
+
+
+ID_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+RESULT_CODES = {
+    "CAPABILITY_VALID",
+    "OPTIONAL_CAPABILITY_UNAVAILABLE",
+    "NOT_APPLICABLE",
+}
+ERROR_CODES = {"REQUIRED_CAPABILITY_UNAVAILABLE", "CAPABILITY_RESULT_INCOMPLETE"}
+
+
+def digest(text: str) -> str:
+    return "sha256:" + hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
+
+
+def result(capability_id: str, required: bool, observed: bool, code: str, evidence: str) -> dict[str, object]:
+    return {
+        "capability_id": capability_id,
+        "required": required,
+        "observed": observed,
+        "code": code,
+        "evidence_digest": digest(evidence),
+    }
+
+
+def emit(value: dict[str, object], status: int) -> int:
+    print(json.dumps(value, ensure_ascii=True, separators=(",", ":")))
+    return status
+
+
+def canonical(value: Any) -> bytes:
+    return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("ascii")
+
+
+def strict_json(path: Path) -> Any:
+    if not path.is_file() or path.is_symlink():
+        raise ValueError("result set is not a regular file")
+    data = path.read_bytes()
+    if len(data) > 64 * 1024:
+        raise ValueError("result set exceeds the size limit")
+
+    def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in items:
+            if key in value:
+                raise ValueError("duplicate object key")
+            value[key] = item
+        return value
+
+    text = data.decode("utf-8")
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > 16:
+                raise ValueError("result set exceeds the nesting limit")
+        elif character in "]}":
+            depth -= 1
+    value, end = json.JSONDecoder(object_pairs_hook=pairs, parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite number"))).raw_decode(text)
+    if text[end:].strip():
+        raise ValueError("trailing data")
+    return value
+
+
+def validate_set(path: Path, required_ids: list[str], optional_ids: list[str]) -> int:
+    expected = {name: True for name in required_ids}
+    expected.update({name: False for name in optional_ids})
+    try:
+        if not expected:
+            raise ValueError("expected capability set is empty")
+        value = strict_json(path)
+        if not isinstance(value, dict) or set(value) != {"results"} or not isinstance(value["results"], list):
+            raise ValueError("result set must be an object containing results")
+        results = value["results"]
+        if not results:
+            raise ValueError("capability outcome set is empty")
+        seen: set[str] = set()
+        previous = ""
+        for item in results:
+            if not isinstance(item, dict) or set(item) != {"capability_id", "required", "observed", "code", "evidence_digest"}:
+                raise ValueError("result has unknown or missing fields")
+            identifier = item["capability_id"]
+            if not isinstance(identifier, str) or ID_RE.fullmatch(identifier) is None:
+                raise ValueError("result has an invalid capability ID")
+            if identifier in seen:
+                raise ValueError("duplicate capability result")
+            if identifier not in expected:
+                raise ValueError("unknown capability result")
+            if identifier <= previous:
+                raise ValueError("capability results are not strictly sorted")
+            previous = identifier
+            seen.add(identifier)
+            if type(item["required"]) is not bool or type(item["observed"]) is not bool:
+                raise ValueError("required and observed must be booleans")
+            if item["required"] != expected[identifier] or not isinstance(item["code"], str):
+                raise ValueError("capability result binding is invalid")
+            code = item["code"]
+            observed = item["observed"]
+            required = item["required"]
+            valid_code = (code == "CAPABILITY_VALID" and observed) or (
+                code == "OPTIONAL_CAPABILITY_UNAVAILABLE" and not required and not observed
+            ) or (code == "NOT_APPLICABLE" and not required and not observed) or (
+                code == "REQUIRED_CAPABILITY_UNAVAILABLE" and required and not observed
+            )
+            evidence_digest = item["evidence_digest"]
+            if not valid_code or not isinstance(evidence_digest, str) or DIGEST_RE.fullmatch(evidence_digest) is None or len(set(evidence_digest.split(":", 1)[1])) == 1:
+                raise ValueError("capability result code or digest is invalid")
+        if seen != set(expected):
+            raise ValueError("required or optional outcome is missing")
+        evidence = "sha256:" + hashlib.sha256(canonical(results)).hexdigest()
+        if any(item["required"] and item["code"] == "REQUIRED_CAPABILITY_UNAVAILABLE" for item in results):
+            return emit({"code": "REQUIRED_CAPABILITY_UNAVAILABLE", "results": results, "evidence_digest": evidence}, 3)
+        return emit({"code": "CAPABILITY_VALID", "results": results, "evidence_digest": evidence}, 0)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as error:
+        evidence = "sha256:" + hashlib.sha256(str(error).encode("utf-8")).hexdigest()
+        return emit({"code": "CAPABILITY_RESULT_INCOMPLETE", "detail": str(error), "evidence_digest": evidence}, 3)
+
+
+def parse_bool(value: str) -> bool:
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    raise argparse.ArgumentTypeError("expected true or false")
+
+
+class TypedArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise ValueError(message)
+
+
+def main() -> int:
+    parser = TypedArgumentParser(add_help=True)
+    parser.add_argument("--validate-set")
+    parser.add_argument("--required-id", action="append", default=[])
+    parser.add_argument("--optional-id", action="append", default=[])
+    parser.add_argument("--capability-id")
+    parser.add_argument("--required", type=parse_bool)
+    parser.add_argument("--observed", type=parse_bool)
+    parser.add_argument("--code")
+    parser.add_argument("--evidence")
+    try:
+        args = parser.parse_args()
+    except ValueError as error:
+        return emit({"code": "CAPABILITY_RESULT_INCOMPLETE", "detail": str(error), "evidence_digest": digest(str(error))}, 3)
+
+    if args.validate_set is not None:
+        if any(ID_RE.fullmatch(identifier) is None for identifier in args.required_id + args.optional_id):
+            return emit({"code": "CAPABILITY_RESULT_INCOMPLETE", "detail": "invalid expected capability ID", "evidence_digest": digest("invalid expected capability ID")}, 3)
+        if set(args.required_id).intersection(args.optional_id) or len(set(args.required_id)) != len(args.required_id) or len(set(args.optional_id)) != len(args.optional_id):
+            return emit({"code": "CAPABILITY_RESULT_INCOMPLETE", "detail": "duplicate expected capability ID", "evidence_digest": digest("duplicate expected capability ID")}, 3)
+        return validate_set(Path(args.validate_set), args.required_id, args.optional_id)
+
+    if any(value is None for value in (args.capability_id, args.required, args.observed, args.code, args.evidence)):
+        return emit({"code": "CAPABILITY_RESULT_INCOMPLETE", "detail": "single result arguments are incomplete", "evidence_digest": digest("single result arguments are incomplete")}, 3)
+
+    try:
+        args.evidence.encode("utf-8")
+    except UnicodeEncodeError:
+        return emit(result(args.capability_id if isinstance(args.capability_id, str) else "invalid-capability", bool(args.required), bool(args.observed), "CAPABILITY_RESULT_INCOMPLETE", "unencodable evidence"), 3)
+
+    code = args.code
+    valid = ID_RE.fullmatch(args.capability_id) is not None
+    if valid and code in RESULT_CODES:
+        valid = (code == "CAPABILITY_VALID" and args.observed) or (
+            code == "OPTIONAL_CAPABILITY_UNAVAILABLE" and not args.required and not args.observed
+        ) or (code == "NOT_APPLICABLE" and not args.required and not args.observed)
+    elif valid and code in ERROR_CODES:
+        valid = code == "REQUIRED_CAPABILITY_UNAVAILABLE" and args.required and not args.observed
+    else:
+        valid = False
+
+    if not valid:
+        value = result(
+            args.capability_id if ID_RE.fullmatch(args.capability_id) else "invalid-capability",
+            args.required,
+            args.observed,
+            "CAPABILITY_RESULT_INCOMPLETE",
+            "invalid capability result: " + args.evidence,
+        )
+        return emit(value, 3)
+
+    value = result(args.capability_id, args.required, args.observed, code, args.evidence)
+    return emit(value, 3 if code == "REQUIRED_CAPABILITY_UNAVAILABLE" else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

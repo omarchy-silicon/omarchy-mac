@@ -1,4 +1,7 @@
 # Setup default work directory (and tries)
+source "$OMARCHY_INSTALL/helpers/capability-outcomes.sh"
+capability_outcomes_require_emitter || return $?
+
 mkdir -p "$HOME/Work"
 mkdir -p "$HOME/Work/tries"
 
@@ -33,15 +36,23 @@ if [[ -n $NODE_TARBALL ]]; then
   NODE_VERSION=$(basename "$NODE_TARBALL" | sed "s/node-v\(.*\)-linux-${NODE_TARBALL_ARCH}.tar.gz/\1/")
   NODE_INSTALL_DIR="$HOME/.local/share/mise/installs/node/$NODE_VERSION"
 
-  mkdir -p "$NODE_INSTALL_DIR"
-  tar -xzf "$NODE_TARBALL" --strip-components=1 -C "$NODE_INSTALL_DIR"
-  mise use -g node@"$NODE_VERSION"
+  if mkdir -p "$NODE_INSTALL_DIR" &&
+    tar -xzf "$NODE_TARBALL" --strip-components=1 -C "$NODE_INSTALL_DIR" &&
+    mise use -g node@"$NODE_VERSION"; then
+    capability_valid node-runtime false "bundled Node.js $NODE_VERSION installed"
+  else
+    capability_optional_unavailable node-runtime "bundled Node.js installation failed"
+  fi
 else
   # Only the ISO stages a tarball, and --first-install reports iso-chroot even
   # for a script install, so a missing one is normal here rather than a broken
   # image. Never fail user setup over it.
   if [[ -n $NODE_PACKAGE_DIR ]]; then
-    echo "Warning: no bundled Node.js tarball in $NODE_PACKAGE_DIR; installing from the network" >&2
+    echo "No bundled Node.js tarball in $NODE_PACKAGE_DIR; installing from the network" >&2
   fi
-  mise use -g node@latest || echo "Warning: Node.js install deferred (no network)" >&2
+  if mise use -g node@latest; then
+    capability_valid node-runtime false "Node.js installed from the configured runtime source"
+  else
+    capability_optional_unavailable node-runtime "Node.js installation deferred because the runtime source is unavailable"
+  fi
 fi

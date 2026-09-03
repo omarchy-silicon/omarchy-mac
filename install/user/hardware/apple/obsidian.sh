@@ -8,17 +8,29 @@
 # carries aarch64 and extracts Obsidian's own arm64 AppImage, so ask for that
 # one by name. Verified on an M2 Max: obsidian-appimage-1.12.7-1-aarch64 builds
 # and runs.
-if [[ $(uname -m) == "aarch64" ]] && omarchy-cmd-missing obsidian; then
+source "$OMARCHY_INSTALL/helpers/capability-outcomes.sh"
+capability_outcomes_require_emitter || return $?
+
+if [[ $(uname -m) != "aarch64" ]]; then
+  capability_not_applicable apple-obsidian "architecture is not aarch64"
+elif omarchy-cmd-missing obsidian; then
   echo "Installing Obsidian for Apple Silicon (the AppImage build)."
 
   # The Omarchy ARM repo carries a built obsidian-appimage, so try the repos
   # first: it is a 118 MB AppImage that every machine would otherwise download
   # and repack for itself. omarchy-pkg-add skips packages the repos do not have,
   # so fall back to building when the repo is missing or unreachable.
-  omarchy-pkg-add obsidian-appimage
+  omarchy-pkg-add obsidian-appimage || true
 
   if omarchy-cmd-missing obsidian; then
-    omarchy-pkg-aur-add obsidian-appimage ||
-      echo "Warning: obsidian-appimage failed to build; install it later with 'omarchy pkg aur add obsidian-appimage'." >&2
+    omarchy-pkg-aur-add obsidian-appimage || true
   fi
+
+  if omarchy-cmd-missing obsidian; then
+    capability_optional_unavailable apple-obsidian "obsidian-appimage is unavailable"
+  else
+    capability_valid apple-obsidian false "Obsidian AppImage is installed"
+  fi
+else
+  capability_valid apple-obsidian false "Obsidian is already installed"
 fi

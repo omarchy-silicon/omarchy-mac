@@ -29,6 +29,17 @@ cat >"$stub_bin/uname" <<'SH'
 printf '%s\n' "$TEST_ARCH"
 SH
 
+cat >"$stub_bin/grep" <<'SH'
+#!/bin/bash
+
+args=("$@")
+last=$(( ${#args[@]} - 1 ))
+if [[ ${args[$last]} == "/sys/firmware/devicetree/base/compatible" ]]; then
+  args[$last]="$TEST_COMPATIBLE_SOURCE"
+fi
+exec /usr/bin/grep "${args[@]}"
+SH
+
 cat >"$stub_bin/omarchy-pkg-missing" <<'SH'
 #!/bin/bash
 
@@ -78,7 +89,7 @@ SH
 chmod +x "$stub_bin"/*
 
 run_audio_setup() {
-  local script="$1" arch="$2" machine="$3" install_succeeds="${4:-1}"
+  local script="$1" arch="$2" machine="$3" install_succeeds="${4:-1}" omarchy_path="${5:-$ROOT}"
   printf '%s\0' "$machine" >"$compatible"
 
   PATH="$stub_bin:$PATH" \
@@ -86,8 +97,9 @@ run_audio_setup() {
     TEST_LOG="$calls" \
     AUDIO_INSTALLED_MARKER="$installed_marker" \
     PACKAGE_INSTALL_SUCCEEDS="$install_succeeds" \
-    OMARCHY_APPLE_COMPATIBLE="$compatible" \
-    OMARCHY_PATH="$ROOT" \
+    TEST_COMPATIBLE_SOURCE="$compatible" \
+    OMARCHY_PATH="$omarchy_path" \
+    OMARCHY_INSTALL="$ROOT/install" \
     bash -euo pipefail -c 'source "$1"' bash "$script" >/dev/null
 }
 
@@ -98,6 +110,26 @@ expected_call=$'omarchy-pkg-add\trtkit\tpipewire-pulse\tpipewire-alsa\tasahi-aud
 grep -Fxq "$expected_call" "$calls" ||
   fail "fresh Apple Silicon installs get the complete protected audio stack" "$(cat "$calls")"
 pass "fresh Apple Silicon installs get the complete protected audio stack"
+
+rm -f "$installed_marker"
+: >"$calls"
+printf 'not-apple\0' >"$test_tmp/non-apple-compatible"
+OMARCHY_APPLE_COMPATIBLE="$test_tmp/non-apple-compatible" run_audio_setup "$leaf" aarch64 apple,j413
+grep -Fxq "$expected_call" "$calls" ||
+  fail "caller identity environment cannot bypass admitted Apple audio setup" "$(cat "$calls")"
+pass "caller identity environment cannot bypass admitted Apple audio setup"
+
+rm -f "$installed_marker"
+: >"$calls"
+mkdir -p "$test_tmp/no-emitter"
+set +e
+run_audio_setup "$leaf" aarch64 apple,j413 1 "$test_tmp/no-emitter" >"$test_tmp/no-emitter-output" 2>&1
+status=$?
+set -e
+[[ $status -ne 0 ]] || fail "missing capability emitter rejects Apple audio before mutation"
+[[ ! -s $calls && ! -e $installed_marker ]] ||
+  fail "missing capability emitter blocks Apple audio mutation" "$(cat "$calls")"
+pass "missing capability emitter blocks Apple audio before mutation"
 
 run_audio_setup "$leaf" aarch64 apple,j413
 (( $(grep -Fxc "$expected_call" "$calls") == 1 )) ||
@@ -123,20 +155,23 @@ pass "the migration repairs existing Apple Silicon installs idempotently"
 rm -f "$installed_marker"
 : >"$calls"
 errors="$test_tmp/errors.log"
-run_audio_setup "$leaf" aarch64 apple,j413 0 2>"$errors" ||
-  fail "an incomplete install does not abort hardware setup" "$(cat "$errors")"
-grep -Fq 'protected Asahi audio stack is incomplete' "$errors" ||
-  fail "fresh setup explains the incomplete audio stack" "$(cat "$errors")"
+set +e
+run_audio_setup "$leaf" aarch64 apple,j413 0 2>"$errors"
+status=$?
+set -e
+[[ $status -eq 3 ]] || fail "an incomplete install rejects the required capability" "status=$status"
+pass "an incomplete install rejects the required capability"
 
 : >"$calls"
 : >"$errors"
-run_audio_setup "$migration" aarch64 apple,j413 0 2>"$errors" ||
-  fail "an incomplete install does not abort the migration" "$(cat "$errors")"
-grep -Fq 'protected Asahi audio stack is incomplete' "$errors" ||
-  fail "the migration explains the incomplete audio stack" "$(cat "$errors")"
+set +e
+run_audio_setup "$migration" aarch64 apple,j413 0 2>"$errors"
+status=$?
+set -e
+[[ $status -eq 3 ]] || fail "an incomplete migration rejects the required capability" "status=$status"
 ! grep -Fq 'reboot-required' "$calls" ||
   fail "an incomplete install does not ask for a pointless reboot" "$(cat "$calls")"
-pass "an incomplete package install warns instead of aborting"
+pass "an incomplete migration rejects the required capability"
 
 rm -f "$installed_marker"
 : >"$calls"
