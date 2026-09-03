@@ -24,6 +24,8 @@ jobs:
         run: bash test/shell.d/platform-diagnostics-test.sh
       - name: Run platform update hostile suite
         run: bash test/shell.d/platform-update-rollback-test.sh
+      - name: Run legacy conversion retirement suite
+        run: bash test/shell.d/legacy-conversion-retirement-test.sh
       - name: Verify canonical census
         run: python3 tools/apple-silicon/parity-census.py check
       - name: Verify command metadata

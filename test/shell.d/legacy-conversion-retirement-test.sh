@@ -19,16 +19,59 @@ SH
   chmod +x "$mock_bin/$command_name"
 done
 
-set +e
-PATH="$mock_bin:$PATH" OMARCHY_RETIREMENT_MARKER="$marker" \
-  "$ROOT/bin/omarchy-mac-setup" --encrypt --repo '../../../../target' --step mutate >"$test_tmp/tombstone-output" 2>&1
-tombstone_status=$?
-set -e
-[[ $tombstone_status -ne 0 ]] || fail "retired guided setup rejects hostile options"
-grep -Fq 'signed Omarchy Silicon native clean installer is not yet shipped' "$test_tmp/tombstone-output" ||
-  fail "retired guided setup explains the fail-closed status"
-[[ ! -e $marker ]] || fail "retired guided setup reaches no mutator"
-pass "retired guided setup rejects hostile options before mutation"
+for entrypoint in omarchy-mac-setup omarchy-system-boot-to-esp omarchy-system-btrfs-migrate; do
+  grep -Fq '# omarchy:hidden=true' "$ROOT/bin/$entrypoint" || fail "$entrypoint remains hidden in command metadata"
+done
+pass "all retired conversion entrypoints remain hidden"
+
+for entrypoint in omarchy-mac-setup omarchy-system-boot-to-esp omarchy-system-btrfs-migrate; do
+  for arguments in "" "--help" "--status" "--worker /dev/loop0" "--rehearse /dev/loop0 --encrypt" "--yes" "--unknown ../../target"; do
+    rm -f "$marker"
+    read -r -a hostile_arguments <<<"$arguments"
+    set +e
+    PATH="$mock_bin:$PATH" OMARCHY_RETIREMENT_MARKER="$marker" \
+      "$ROOT/bin/$entrypoint" "${hostile_arguments[@]}" >"$test_tmp/$entrypoint-output" 2>&1
+    tombstone_status=$?
+    set -e
+    [[ $tombstone_status -ne 0 ]] || fail "$entrypoint rejects hostile arguments: $arguments"
+    grep -Fq 'not yet shipped' "$test_tmp/$entrypoint-output" || fail "$entrypoint explains the unavailable native path"
+    [[ ! -e $marker ]] || fail "$entrypoint reaches a mutator: $arguments"
+  done
+  pass "$entrypoint rejects direct hostile invocations before mutation"
+
+  rm -f "$marker"
+  set +e
+  PATH="$mock_bin:$PATH" OMARCHY_RETIREMENT_MARKER="$marker" \
+    bash -c 'source "$1" --worker /dev/loop0' _ "$ROOT/bin/$entrypoint" >"$test_tmp/$entrypoint-source-output" 2>&1
+  tombstone_status=$?
+  set -e
+  [[ $tombstone_status -ne 0 ]] || fail "$entrypoint rejects sourced invocation"
+  [[ ! -e $marker ]] || fail "$entrypoint reaches a mutator when sourced"
+  pass "$entrypoint rejects sourced invocation before mutation"
+
+  copied="$test_tmp/$entrypoint-copied"
+  cp "$ROOT/bin/$entrypoint" "$copied"
+  chmod +x "$copied"
+  rm -f "$marker"
+  set +e
+  PATH="$mock_bin:$PATH" OMARCHY_RETIREMENT_MARKER="$marker" \
+    bash -s -- --rehearse /dev/loop0 <"$ROOT/bin/$entrypoint" >"$test_tmp/$entrypoint-piped-output" 2>&1
+  tombstone_status=$?
+  set -e
+  [[ $tombstone_status -ne 0 ]] || fail "$entrypoint rejects bash -s invocation"
+  [[ ! -e $marker ]] || fail "$entrypoint reaches a mutator when piped through bash -s"
+  pass "$entrypoint rejects bash -s invocation before mutation"
+
+  rm -f "$marker"
+  set +e
+  PATH="$mock_bin:$PATH" OMARCHY_RETIREMENT_MARKER="$marker" \
+    bash "$copied" --worker /dev/loop0 >"$test_tmp/$entrypoint-copied-output" 2>&1
+  tombstone_status=$?
+  set -e
+  [[ $tombstone_status -ne 0 ]] || fail "$entrypoint rejects copied cache invocation"
+  [[ ! -e $marker ]] || fail "$entrypoint reaches a mutator from a copied cache"
+  pass "$entrypoint rejects copied cache invocation before mutation"
+done
 
 for forbidden in omarchy-mac-setup omarchy-system-boot-to-esp omarchy-system-btrfs-migrate cryptsetup mkfs.btrfs btrfs-convert; do
   if grep -Fq "$forbidden" "$ROOT/install.sh"; then

@@ -25,7 +25,7 @@ readonly limine_dependencies=(
   limine-snapper-sync
 )
 
-# These utilities remain in the checkout for P-07's retirement/hardening work,
+# These disabled tombstones remain in the checkout for stale-command closure,
 # but an Apple clean-install package must not ship the legacy conversion graph.
 readonly legacy_conversion_entrypoints=(
   omarchy-mac-setup
