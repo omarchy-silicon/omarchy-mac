@@ -1,9 +1,11 @@
 #!/bin/bash
 # Install optional proprietary/AUR apps (1Password, etc.)
 
+source "$OMARCHY_INSTALL/helpers/capability-outcomes.sh"
+
 # Only run on aarch64
 if [ "$(uname -m)" != "aarch64" ]; then
-    echo "Skipping optional apps: not aarch64 architecture"
+    capability_not_applicable optional-proprietary-apps "architecture is not aarch64"
     return 0
 fi
 
@@ -16,8 +18,11 @@ OMARCHY_BIN="${OMARCHY_PATH:-/usr/share/omarchy}/bin"
 # Install 1Password if the installer script exists
 if [ -x "$OMARCHY_BIN/omarchy-install-1password" ]; then
     echo "Installing 1Password..."
-    "$OMARCHY_BIN/omarchy-install-1password" || {
-        echo "Warning: 1Password installation failed. You can install it manually later with:"
-        echo "  omarchy-install-1password"
-    }
+    if "$OMARCHY_BIN/omarchy-install-1password"; then
+        capability_valid optional-proprietary-apps false "1Password installer completed"
+    else
+        capability_optional_unavailable optional-proprietary-apps "1Password installer failed"
+    fi
+else
+    capability_optional_unavailable optional-proprietary-apps "1Password installer is not shipped"
 fi

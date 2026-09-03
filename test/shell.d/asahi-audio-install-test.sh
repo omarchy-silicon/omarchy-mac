@@ -88,6 +88,7 @@ run_audio_setup() {
     PACKAGE_INSTALL_SUCCEEDS="$install_succeeds" \
     OMARCHY_APPLE_COMPATIBLE="$compatible" \
     OMARCHY_PATH="$ROOT" \
+    OMARCHY_INSTALL="$ROOT/install" \
     bash -euo pipefail -c 'source "$1"' bash "$script" >/dev/null
 }
 
@@ -123,20 +124,23 @@ pass "the migration repairs existing Apple Silicon installs idempotently"
 rm -f "$installed_marker"
 : >"$calls"
 errors="$test_tmp/errors.log"
-run_audio_setup "$leaf" aarch64 apple,j413 0 2>"$errors" ||
-  fail "an incomplete install does not abort hardware setup" "$(cat "$errors")"
-grep -Fq 'protected Asahi audio stack is incomplete' "$errors" ||
-  fail "fresh setup explains the incomplete audio stack" "$(cat "$errors")"
+set +e
+run_audio_setup "$leaf" aarch64 apple,j413 0 2>"$errors"
+status=$?
+set -e
+[[ $status -eq 3 ]] || fail "an incomplete install rejects the required capability" "status=$status"
+pass "an incomplete install rejects the required capability"
 
 : >"$calls"
 : >"$errors"
-run_audio_setup "$migration" aarch64 apple,j413 0 2>"$errors" ||
-  fail "an incomplete install does not abort the migration" "$(cat "$errors")"
-grep -Fq 'protected Asahi audio stack is incomplete' "$errors" ||
-  fail "the migration explains the incomplete audio stack" "$(cat "$errors")"
+set +e
+run_audio_setup "$migration" aarch64 apple,j413 0 2>"$errors"
+status=$?
+set -e
+[[ $status -eq 3 ]] || fail "an incomplete migration rejects the required capability" "status=$status"
 ! grep -Fq 'reboot-required' "$calls" ||
   fail "an incomplete install does not ask for a pointless reboot" "$(cat "$calls")"
-pass "an incomplete package install warns instead of aborting"
+pass "an incomplete migration rejects the required capability"
 
 rm -f "$installed_marker"
 : >"$calls"

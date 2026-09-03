@@ -12,6 +12,7 @@ fake_omarchy="$test_tmp/omarchy"
 install_log="$test_tmp/1password.log"
 aur_log="$test_tmp/aur.log"
 mkdir -p "$mock_bin" "$fake_omarchy/bin"
+cp "$ROOT/bin/omarchy-hw-capability-outcome" "$fake_omarchy/bin/"
 
 cat >"$mock_bin/uname" <<'SH'
 #!/bin/bash
@@ -34,6 +35,7 @@ chmod +x "$mock_bin/uname" "$fake_omarchy/bin/omarchy-install-1password" "$mock_
   unset OMARCHY_BIN
   PATH="$mock_bin:$ROOT/bin:$PATH" \
     OMARCHY_PATH="$fake_omarchy" \
+    OMARCHY_INSTALL="$ROOT/install" \
     OMARCHY_TEST_INSTALL_LOG="$install_log" \
     OMARCHY_TEST_AUR_LOG="$aur_log" \
     bash -eE -c 'source "$1"' bash "$ROOT/install/post-install/optional-apps.sh"

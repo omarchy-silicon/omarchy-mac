@@ -230,8 +230,8 @@ if [[ $TEST_MIRRORS -eq 1 ]]; then
     MIRROR="Server = $FALLBACK_MIRROR"
     echo "[WARN] Primary mirror unavailable, using fallback: $FALLBACK_MIRROR"
   else
-    MIRROR="Server = $PRIMARY_MIRROR"
-    echo "[WARN] Both mirrors appear unavailable, proceeding with primary anyway"
+    echo "[ERROR] Both ARM mirrors are unavailable; refusing to mutate the mirrorlist" >&2
+    exit 3
   fi
 else
   MIRROR="Server = $PRIMARY_MIRROR"
