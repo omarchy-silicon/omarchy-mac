@@ -4,10 +4,21 @@
 # omarchy:args=<log-file>
 # omarchy:hidden=true
 
-if [[ $(/usr/bin/uname -m) == "aarch64" ]]; then
-  printf '%s\n' 'Apple Silicon log upload is disabled; run `omarchy debug platform` for a redacted bundle.' >&2
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  printf '%s\n' 'Platform identity is unavailable; refusing the legacy log upload.' >&2
   exit 3
-fi
+}
+case "$platform_architecture" in
+  aarch64)
+    printf '%s\n' 'Apple Silicon log upload is disabled; run `omarchy debug platform` for a redacted bundle.' >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    printf '%s\n' 'Platform identity is not a recognized safe non-Apple architecture; refusing the legacy log upload.' >&2
+    exit 3
+    ;;
+esac
 
 LOG_TYPE="${1:-install}"
 TEMP_LOG="/tmp/upload-log.txt"

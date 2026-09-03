@@ -216,7 +216,7 @@ import sys
 
 source, destination = sys.argv[1:]
 text = open(source, encoding="utf-8").read()
-text = text.replace("$(/usr/bin/uname -m)", "$(printf 'aarch64\\n')")
+text = text.replace("$(/usr/bin/uname -m 2>/dev/null)", "$(printf 'aarch64\\n')")
 with open(destination, "w", encoding="utf-8") as stream:
     stream.write(text)
 os.chmod(destination, 0o755)
@@ -229,6 +229,34 @@ PY
   [[ ! -e $test_tmp/simulated-marker ]] || fail "simulated aarch64 legacy route reaches a mutator"
 done
 pass "fixed aarch64 identity blocks both legacy routes before side effects"
+
+for hostile_arch in failed false empty unknown; do
+  for legacy in "$ROOT/bin/omarchy-debug" "$ROOT/bin/omarchy-upload-log"; do
+    simulated="$test_tmp/$(basename "$legacy")-$hostile_arch"
+    python3 - "$legacy" "$simulated" "$hostile_arch" <<'PY'
+import os
+import sys
+
+source, destination, architecture = sys.argv[1:]
+replacement = {"failed": "$(exit 19)", "false": "false", "empty": "", "unknown": "mystery"}[architecture]
+text = open(source, encoding="utf-8").read()
+if architecture == "failed":
+    text = text.replace("$(/usr/bin/uname -m 2>/dev/null)", replacement)
+else:
+    text = text.replace("$(/usr/bin/uname -m 2>/dev/null)", "$(printf '%s\\n' '" + replacement + "')")
+with open(destination, "w", encoding="utf-8") as stream:
+    stream.write(text)
+os.chmod(destination, 0o755)
+PY
+    set +e
+    PATH="$test_tmp:$PATH" OMARCHY_DIAGNOSTICS_MARKER="$test_tmp/hostile-marker" "$simulated" --print >"$test_tmp/hostile-output" 2>&1
+    outcome_status=$?
+    set -e
+    [[ $outcome_status -eq 3 ]] || fail "hostile architecture is blocked: $legacy/$hostile_arch"
+    [[ ! -e $test_tmp/hostile-marker ]] || fail "hostile architecture reaches a mutator: $legacy/$hostile_arch"
+  done
+done
+pass "false, empty, and unknown architecture identities fail closed"
 
 cat >"$test_tmp/uname" <<'SH'
 #!/bin/bash
@@ -256,12 +284,17 @@ else
   PATH="$test_tmp:$PATH" "$ROOT/bin/omarchy-debug" --not-a-real-option >"$test_tmp/fake-uname-output" 2>&1
   outcome_status=$?
   set -e
-  [[ $outcome_status -eq 1 ]] || fail "PATH fake uname cannot re-enable the aarch64 guard"
-  grep -Fq 'Unknown option' "$test_tmp/fake-uname-output" || fail "fixed system identity controls the legacy debug guard"
+  if [[ $(/usr/bin/uname -m) == "x86_64" ]]; then
+    [[ $outcome_status -eq 1 ]] || fail "PATH fake uname cannot re-enable the aarch64 guard"
+    grep -Fq 'Unknown option' "$test_tmp/fake-uname-output" || fail "fixed system identity controls the legacy debug guard"
+  else
+    [[ $outcome_status -eq 3 ]] || fail "unrecognized host identity remains fail closed"
+    grep -Fq 'recognized safe non-Apple' "$test_tmp/fake-uname-output" || fail "unknown host identity has the typed guard"
+  fi
   pass "PATH fake uname cannot bypass the fixed system identity guard"
 fi
 
-if [[ $(/usr/bin/uname -m) != "aarch64" ]]; then
+if [[ $(/usr/bin/uname -m) == "x86_64" ]]; then
   cat >"$test_tmp/x86-uname" <<'SH'
 #!/bin/bash
 printf '%s\n' x86_64

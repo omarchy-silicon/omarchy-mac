@@ -5,10 +5,21 @@
 # omarchy:examples=omarchy debug --print --no-sudo
 # omarchy:requires-sudo=true
 
-if [[ $(/usr/bin/uname -m) == "aarch64" ]]; then
-  printf '%s\n' 'Apple Silicon diagnostics are privacy-bound; run `omarchy debug platform`.' >&2
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  printf '%s\n' 'Platform identity is unavailable; refusing the legacy diagnostic flow.' >&2
   exit 3
-fi
+}
+case "$platform_architecture" in
+  aarch64)
+    printf '%s\n' 'Apple Silicon diagnostics are privacy-bound; run `omarchy debug platform`.' >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    printf '%s\n' 'Platform identity is not a recognized safe non-Apple architecture; refusing the legacy diagnostic flow.' >&2
+    exit 3
+    ;;
+esac
 
 NO_SUDO=false
 PRINT_ONLY=false
