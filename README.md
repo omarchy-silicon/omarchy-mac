@@ -1,26 +1,31 @@
-![Omarchy 4 on an Apple Silicon MacBook: the top bar flowing around the display notch on a fresh install](hero.jpg)
+![Omarchy 4 on an Apple Silicon MacBook: the top bar flowing around the display notch in a development session](hero.jpg)
 
 # Omarchy Mac
 
-Omarchy 4 on Apple Silicon, alongside macOS: the Omarchy Silicon integration is under active development.
+Omarchy 4 on Apple Silicon, alongside macOS: the Omarchy Silicon integration is under active development for M1, M2, M3, M4, M5, M6, and future M-series generations across materially distinct MacBook Air, MacBook Pro, Mac mini, iMac, Mac Studio, and Mac Pro board families.
 
-[![License](https://img.shields.io/github/license/omarchy-mac/omarchy-mac)](LICENSE) [![Stars](https://img.shields.io/github/stars/omarchy-mac/omarchy-mac?style=social)](https://github.com/omarchy-mac/omarchy-mac/stargazers)
+**Support status:** no Apple Silicon board is currently supported or qualified, and no supported clean installer or release is shipped. Hardware and setup references below describe development targets, not compatibility or installability.
 
-Already running Omarchy 3.x? This page is the fresh install — to upgrade in
-place, see [docs/upgrade-to-quattro.md](docs/upgrade-to-quattro.md).
+[![License](https://img.shields.io/github/license/omarchy-silicon/omarchy-mac)](LICENSE) [![Stars](https://img.shields.io/github/stars/omarchy-silicon/omarchy-mac?style=social)](https://github.com/omarchy-silicon/omarchy-mac/stargazers)
+
+Already running Omarchy 3.x? The historical upgrade notes are retained for
+reference only; no supported upgrade or clean-install path is currently
+shipped. See [docs/upgrade-to-quattro.md](docs/upgrade-to-quattro.md).
 
 ---
 
 ## Before you begin
 
 - A recent backup of macOS (Time Machine or similar).
-- An Apple Silicon Mac (M1/M2 family). Verify compatibility: https://asahilinux.org/fedora/#device-support
-- At least 50 GB free on the internal SSD (100 GB recommended).
+- An Apple Silicon Mac in the present or future M-series target set. No board is currently supported or qualified; see the [Asahi device-support table](https://asahilinux.org/fedora/#device-support) for upstream context only.
+- At least 50 GB free on the internal SSD (100 GB recommended) if you are performing an experimental developer investigation.
 - Internet access.
 
 ---
 
-## Install
+## Experimental / developer-only setup (not supported)
+
+The commands in this section are retained for developers inspecting target-side integration. Do **not** run them on a valuable system: they download and execute remote code and may repartition, encrypt, or otherwise modify a disk. The native signed Omarchy Silicon clean installer is not shipped, and these commands provide no support, compatibility, qualification, or release-readiness guarantee.
 
 ### 1. Run the Asahi Alarm installer, from macOS Terminal
 
@@ -28,8 +33,7 @@ place, see [docs/upgrade-to-quattro.md](docs/upgrade-to-quattro.md).
 curl https://asahi-alarm.org/installer-bootstrap.sh | sh
 ```
 
-Choose `Asahi Alarm Minimal (BTRFS)` and allocate at least 50 GB for Linux.
-The plain `Asahi Alarm Minimal` (ext4) is not supported by the not-yet-shipped native clean installer; neither image currently has a supported Omarchy clean-install path.
+Choose an Asahi Alarm image only if you are deliberately testing the underlying target-side pieces. Neither `Asahi Alarm Minimal (BTRFS)` nor `Asahi Alarm Minimal` (ext4) currently has a supported Omarchy clean-install path.
 
 ### 2. Boot into Arch and get online
 
@@ -53,32 +57,34 @@ The signed Omarchy Silicon native clean installer is not yet shipped. The former
 
 ---
 
-## By hand
+### Existing target-side setup (not a clean install)
 
 The package and runtime setup can be inspected separately, but the native clean installer is not yet available. Once a regular user with sudo exists — the minimal image ships without `git` or `sudo`, so as root first: `pacman -S --needed sudo git` — the existing setup is:
 
 ```bash
-git clone https://github.com/omarchy-mac/omarchy-mac.git ~/.local/share/omarchy
+git clone --branch quattro https://github.com/omarchy-silicon/omarchy-mac.git ~/.local/share/omarchy
 cd ~/.local/share/omarchy
 cat version    # 4.x — if this says 3.x you are on the wrong branch
 bash install.sh
 ```
 
-**Mind the branch.** A plain clone gets `quattro`, the default branch and the
-Omarchy 4 line. `main` still carries Omarchy 3.x, and its `install.sh` installs
-Omarchy 3 without saying which generation it is putting on the machine — an
-easy hour to lose. `cat version` is how you check before committing to it.
+**Mind the branch.** `quattro` is the default branch and the Omarchy 4 line. `main` still carries Omarchy 3.x, and its `install.sh` installs Omarchy 3 without saying which generation it is putting on the machine. `cat version` is how you check before committing to an experimental inspection.
 
-This setup path is not the native signed clean-install flow and should not be treated as a release or support claim. A few packages have no ARM build and the current package tooling reports those gaps separately.
+This setup path is not the native signed clean-install flow and should not be treated as a release or support claim. Do not run it on a valuable system. A few packages have no ARM build and the current package tooling reports those gaps separately.
 
 ---
 
 ## Troubleshooting
 
+The notes in this section apply only to legacy or experimental target-side
+setups. They do not establish a supported installation, compatibility, or
+recovery path.
+
 ### SSH stopped working after the install
 
 Asahi Alarm ships openssh enabled — the images are built for headless boards —
-and Omarchy's install turns on a default-deny firewall that never opens port 22.
+and the legacy Omarchy install turned on a default-deny firewall that never
+opened port 22.
 Nothing is uninstalled; the machine simply stops answering, which looks exactly
 like sshd having been removed. Turn it back on deliberately:
 
@@ -106,18 +112,26 @@ Run `bash fix-mirrors.sh` from the repository root and retry.
 
 ## Removal (uninstall)
 
+For developers with a legacy or experimental setup only:
+
 There is no automatic uninstaller. Removal is done from macOS by deleting the
 Linux partitions and growing the macOS container back over them. Follow the
 [Asahi Linux partitioning cheatsheet](https://asahilinux.org/docs/sw/partitioning-cheatsheet/)
 exactly — it identifies which partitions are Asahi's and which are macOS's own,
-and the wrong `diskutil` target can take macOS with it. If unsure, open an
-issue.
+and the wrong `diskutil` target can take macOS with it. If unsure, ask in the
+[central Discussions](https://github.com/omarchy-silicon/omarchy-apple-platform/discussions)
+before changing anything.
 
 ---
 
-## Support
+## Support and contributions
 
-Consider supporting the project: [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/malik2015no)
+No Apple Silicon board is currently supported or qualified, and no supported
+clean installer or release is shipped. For project communication:
+
+- [Report a verified bug in product Issues](https://github.com/omarchy-silicon/omarchy-mac/issues).
+- [Discuss ideas and cross-project work in the central Discussions](https://github.com/omarchy-silicon/omarchy-apple-platform/discussions).
+- [Report a security vulnerability privately](https://github.com/omarchy-silicon/omarchy-mac/security/advisories/new).
 
 ---
 
@@ -139,9 +153,9 @@ Consider supporting the project: [![Buy Me A Coffee](https://img.shields.io/badg
 
 ## Acknowledgements
 
-Thanks to Asahi Linux and Asahi Alarm for enabling Linux on Apple Silicon, and to DHH for creating Omarchy.
+This project is a downstream integration of [Omarchy](https://github.com/basecamp/omarchy). Thanks to Omarchy, Asahi Linux, and Asahi Alarm for enabling Linux on Apple Silicon.
 
-If this guide helped you, please star the repository and share feedback in issues or discussions. If you enjoy Omarchy Mac, please share your experience on Twitter/X by tagging [@OmarchyMac](https://x.com/OmarchyMac).
+If this guide helped you, please star the [Omarchy Silicon repository](https://github.com/omarchy-silicon/omarchy-mac) and share feedback through the contribution links above.
 
 ---
 
