@@ -1,0 +1,33 @@
+name: Apple Silicon parity
+
+on:
+  push:
+    branches: [quattro]
+  pull_request:
+    branches: [quattro]
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install test tools
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Run parity hostile suite
+        run: bash test/shell.d/apple-silicon-parity-census-test.sh
+      - name: Verify canonical census
+        run: python3 tools/apple-silicon/parity-census.py check
+      - name: Verify command metadata
+        run: bin/omarchy commands --check
+      - name: Parse every command
+        run: |
+          for f in bin/omarchy-*; do
+            if head -1 "$f" | grep -q python; then
+              python3 -c 'import ast,sys; ast.parse(open(sys.argv[1]).read())' "$f"
+            else
+              bash -n "$f"
+            fi
+          done
