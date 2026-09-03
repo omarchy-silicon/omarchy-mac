@@ -18,6 +18,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
       - name: Run parity hostile suite
         run: bash test/shell.d/apple-silicon-parity-census-test.sh
+      - name: Run platform admission hostile suite
+        run: bash test/shell.d/apple-platform-admission-test.sh
       - name: Verify canonical census
         run: python3 tools/apple-silicon/parity-census.py check
       - name: Verify command metadata

@@ -6,8 +6,8 @@ if [[ -x /opt/homebrew/bin/bash ]] && [[ -x "$ROOT/bin/omarchy" ]]; then
   executable_count=$(git -C "$ROOT" ls-files --stage -- 'bin/omarchy-*' | awk '$1 == "100755" {count++} END {print count+0}')
   command_json=$(/opt/homebrew/bin/bash "$ROOT/bin/omarchy" commands --all --json 2>/dev/null)
   command_count=$(jq '.commands | length' <<<"$command_json")
-  [[ $executable_count == 454 && $command_count == 454 ]] || fail "Git executable command census matches router JSON" "$executable_count vs $command_count"
-  pass "Git executable command census matches router JSON (454)"
+  [[ $executable_count == 455 && $command_count == 455 ]] || fail "Git executable command census matches router JSON" "$executable_count vs $command_count"
+  pass "Git executable command census matches router JSON (455)"
 fi
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
