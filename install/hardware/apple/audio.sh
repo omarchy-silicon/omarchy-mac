@@ -26,39 +26,47 @@
 
 source "$OMARCHY_INSTALL/helpers/capability-outcomes.sh"
 
-compatible="${OMARCHY_APPLE_COMPATIBLE:-/proc/device-tree/compatible}"
-OMARCHY_ASAHI_AUDIO_PACKAGES_CHANGED=0
+apple_audio_main() {
+  compatible="/sys/firmware/devicetree/base/compatible"
+  OMARCHY_ASAHI_AUDIO_PACKAGES_CHANGED=0
 
-# Every device-tree machine has a compatible file, so it has to name Apple --
-# otherwise a Raspberry Pi would install the Asahi stack too.
-if [[ $(uname -m) != "aarch64" ]]; then
-  capability_not_applicable apple-audio-stack "architecture is not aarch64"
-  return 0
-fi
-if [[ ! -f $compatible ]] || ! grep -Faiq 'apple,' "$compatible"; then
-  capability_not_applicable apple-audio-stack "device-tree identity is not Apple Silicon"
-  return 0
-fi
-
-# pkg-missing rather than a bare pkg-add, so the migration can tell whether this
-# actually installed anything and only then ask for a reboot.
-if omarchy-pkg-missing rtkit pipewire-pulse pipewire-alsa asahi-audio speakersafetyd; then
-  echo "Installing the Apple Silicon audio stack"
-  omarchy-pkg-add rtkit pipewire-pulse pipewire-alsa asahi-audio speakersafetyd || true
-
-  if omarchy-pkg-present rtkit pipewire-pulse pipewire-alsa asahi-audio speakersafetyd; then
-    OMARCHY_ASAHI_AUDIO_PACKAGES_CHANGED=1
-  else
-    capability_required_unavailable apple-audio-stack "required Asahi audio packages are unavailable" || return $?
+  # Every device-tree machine has a compatible file, so it has to name Apple --
+  # otherwise a Raspberry Pi would install the Asahi stack too.
+  if [[ $(uname -m) != "aarch64" ]]; then
+    capability_not_applicable apple-audio-stack "architecture is not aarch64"
+    return 0
   fi
-fi
+  if ! grep -Faiq 'apple,' "$compatible"; then
+    capability_not_applicable apple-audio-stack "device-tree identity is not Apple Silicon"
+    return 0
+  fi
 
-# The daemon has to be running before the speakers will produce anything.
-if sudo systemctl enable --now speakersafetyd >/dev/null 2>&1; then
-  capability_valid apple-audio-stack true "Asahi audio packages are installed and speakersafetyd is running"
-else
-  capability_required_unavailable apple-audio-stack "speakersafetyd could not be enabled" || return $?
-fi
+  # pkg-missing rather than a bare pkg-add, so the migration can tell whether this
+  # actually installed anything and only then ask for a reboot.
+  if omarchy-pkg-missing rtkit pipewire-pulse pipewire-alsa asahi-audio speakersafetyd; then
+    echo "Installing the Apple Silicon audio stack"
+    omarchy-pkg-add rtkit pipewire-pulse pipewire-alsa asahi-audio speakersafetyd || true
+
+    if omarchy-pkg-present rtkit pipewire-pulse pipewire-alsa asahi-audio speakersafetyd; then
+      OMARCHY_ASAHI_AUDIO_PACKAGES_CHANGED=1
+    else
+      capability_required_unavailable apple-audio-stack "required Asahi audio packages are unavailable" || return $?
+    fi
+  fi
+
+  # The daemon has to be running before the speakers will produce anything.
+  if sudo systemctl enable --now speakersafetyd >/dev/null 2>&1; then
+    capability_valid apple-audio-stack true "Asahi audio packages are installed and speakersafetyd is running"
+  else
+    capability_required_unavailable apple-audio-stack "speakersafetyd could not be enabled" || return $?
+  fi
+}
 
 # pipewire-pulse is socket-activated per user, so enabling it system-wide is not
 # the job; the user units are enabled at first run.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  apple_audio_main "$@"
+  exit $?
+else
+  apple_audio_main "$@"
+fi

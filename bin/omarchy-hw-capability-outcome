@@ -29,7 +29,7 @@ ERROR_CODES = {"REQUIRED_CAPABILITY_UNAVAILABLE", "CAPABILITY_RESULT_INCOMPLETE"
 
 
 def digest(text: str) -> str:
-    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return "sha256:" + hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
 
 
 def result(capability_id: str, required: bool, observed: bool, code: str, evidence: str) -> dict[str, object]:
@@ -96,10 +96,14 @@ def validate_set(path: Path, required_ids: list[str], optional_ids: list[str]) -
     expected = {name: True for name in required_ids}
     expected.update({name: False for name in optional_ids})
     try:
+        if not expected:
+            raise ValueError("expected capability set is empty")
         value = strict_json(path)
         if not isinstance(value, dict) or set(value) != {"results"} or not isinstance(value["results"], list):
             raise ValueError("result set must be an object containing results")
         results = value["results"]
+        if not results:
+            raise ValueError("capability outcome set is empty")
         seen: set[str] = set()
         previous = ""
         for item in results:
@@ -134,6 +138,8 @@ def validate_set(path: Path, required_ids: list[str], optional_ids: list[str]) -
         if seen != set(expected):
             raise ValueError("required or optional outcome is missing")
         evidence = "sha256:" + hashlib.sha256(canonical(results)).hexdigest()
+        if any(item["required"] and item["code"] == "REQUIRED_CAPABILITY_UNAVAILABLE" for item in results):
+            return emit({"code": "REQUIRED_CAPABILITY_UNAVAILABLE", "results": results, "evidence_digest": evidence}, 3)
         return emit({"code": "CAPABILITY_VALID", "results": results, "evidence_digest": evidence}, 0)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as error:
         evidence = "sha256:" + hashlib.sha256(str(error).encode("utf-8")).hexdigest()
@@ -148,8 +154,13 @@ def parse_bool(value: str) -> bool:
     raise argparse.ArgumentTypeError("expected true or false")
 
 
+class TypedArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise ValueError(message)
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(add_help=True)
+    parser = TypedArgumentParser(add_help=True)
     parser.add_argument("--validate-set")
     parser.add_argument("--required-id", action="append", default=[])
     parser.add_argument("--optional-id", action="append", default=[])
@@ -160,10 +171,8 @@ def main() -> int:
     parser.add_argument("--evidence")
     try:
         args = parser.parse_args()
-    except SystemExit as error:
-        # argparse's usage text is useful for humans; malformed invocations do
-        # not claim success and do not pretend to be a capability result.
-        return int(error.code)
+    except ValueError as error:
+        return emit({"code": "CAPABILITY_RESULT_INCOMPLETE", "detail": str(error), "evidence_digest": digest(str(error))}, 3)
 
     if args.validate_set is not None:
         if any(ID_RE.fullmatch(identifier) is None for identifier in args.required_id + args.optional_id):
@@ -174,6 +183,11 @@ def main() -> int:
 
     if any(value is None for value in (args.capability_id, args.required, args.observed, args.code, args.evidence)):
         return emit({"code": "CAPABILITY_RESULT_INCOMPLETE", "detail": "single result arguments are incomplete", "evidence_digest": digest("single result arguments are incomplete")}, 3)
+
+    try:
+        args.evidence.encode("utf-8")
+    except UnicodeEncodeError:
+        return emit(result(args.capability_id if isinstance(args.capability_id, str) else "invalid-capability", bool(args.required), bool(args.observed), "CAPABILITY_RESULT_INCOMPLETE", "unencodable evidence"), 3)
 
     code = args.code
     valid = ID_RE.fullmatch(args.capability_id) is not None

@@ -29,6 +29,17 @@ cat >"$stub_bin/uname" <<'SH'
 printf '%s\n' "$TEST_ARCH"
 SH
 
+cat >"$stub_bin/grep" <<'SH'
+#!/bin/bash
+
+args=("$@")
+last=$(( ${#args[@]} - 1 ))
+if [[ ${args[$last]} == "/sys/firmware/devicetree/base/compatible" ]]; then
+  args[$last]="$TEST_COMPATIBLE_SOURCE"
+fi
+exec /usr/bin/grep "${args[@]}"
+SH
+
 cat >"$stub_bin/omarchy-pkg-missing" <<'SH'
 #!/bin/bash
 
@@ -86,7 +97,7 @@ run_audio_setup() {
     TEST_LOG="$calls" \
     AUDIO_INSTALLED_MARKER="$installed_marker" \
     PACKAGE_INSTALL_SUCCEEDS="$install_succeeds" \
-    OMARCHY_APPLE_COMPATIBLE="$compatible" \
+    TEST_COMPATIBLE_SOURCE="$compatible" \
     OMARCHY_PATH="$ROOT" \
     OMARCHY_INSTALL="$ROOT/install" \
     bash -euo pipefail -c 'source "$1"' bash "$script" >/dev/null
@@ -99,6 +110,14 @@ expected_call=$'omarchy-pkg-add\trtkit\tpipewire-pulse\tpipewire-alsa\tasahi-aud
 grep -Fxq "$expected_call" "$calls" ||
   fail "fresh Apple Silicon installs get the complete protected audio stack" "$(cat "$calls")"
 pass "fresh Apple Silicon installs get the complete protected audio stack"
+
+rm -f "$installed_marker"
+: >"$calls"
+printf 'not-apple\0' >"$test_tmp/non-apple-compatible"
+OMARCHY_APPLE_COMPATIBLE="$test_tmp/non-apple-compatible" run_audio_setup "$leaf" aarch64 apple,j413
+grep -Fxq "$expected_call" "$calls" ||
+  fail "caller identity environment cannot bypass admitted Apple audio setup" "$(cat "$calls")"
+pass "caller identity environment cannot bypass admitted Apple audio setup"
 
 run_audio_setup "$leaf" aarch64 apple,j413
 (( $(grep -Fxc "$expected_call" "$calls") == 1 )) ||

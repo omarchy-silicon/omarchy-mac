@@ -246,24 +246,42 @@ if [[ -f "$MIRRORLIST_FILE" && $FORCE -eq 0 && -z "${OMARCHY_FORCE_MIRROR_OVERWR
     echo "[OK] ARM mirror already present in $MIRRORLIST_FILE; not changing file."
   else
     if [[ $BACKUP -eq 1 ]]; then
-      sudo cp "$MIRRORLIST_FILE" "$MIRRORLIST_FILE.bak.$(date +%Y%m%d%H%M%S)"
+      if ! sudo cp "$MIRRORLIST_FILE" "$MIRRORLIST_FILE.bak.$(date +%Y%m%d%H%M%S)"; then
+        echo "[ERROR] Could not back up $MIRRORLIST_FILE" >&2
+        exit 3
+      fi
       echo "[INFO] Backed up existing mirrorlist to $MIRRORLIST_FILE.bak.*"
     fi
-    echo "$MIRROR" | sudo tee -a "$MIRRORLIST_FILE" >/dev/null
+    if ! echo "$MIRROR" | sudo tee -a "$MIRRORLIST_FILE" >/dev/null; then
+      echo "[ERROR] Could not append the ARM mirror to $MIRRORLIST_FILE" >&2
+      exit 3
+    fi
     echo "[OK] Appended ARM mirror to $MIRRORLIST_FILE: $MIRROR"
     echo "Updating package database..."
-    sudo pacman -Syy
+    if ! sudo pacman -Syy; then
+      echo "[ERROR] Could not refresh the package database after updating $MIRRORLIST_FILE" >&2
+      exit 3
+    fi
   fi
 else
   # Force overwrite or mirrorlist missing -> write the single ARM server entry
   if [[ -f "$MIRRORLIST_FILE" && $BACKUP -eq 1 ]]; then
-    sudo cp "$MIRRORLIST_FILE" "$MIRRORLIST_FILE.bak.$(date +%Y%m%d%H%M%S)"
+    if ! sudo cp "$MIRRORLIST_FILE" "$MIRRORLIST_FILE.bak.$(date +%Y%m%d%H%M%S)"; then
+      echo "[ERROR] Could not back up $MIRRORLIST_FILE" >&2
+      exit 3
+    fi
     echo "[INFO] Backed up existing mirrorlist to $MIRRORLIST_FILE.bak.*"
   fi
 
-  echo "$MIRROR" | sudo tee "$MIRRORLIST_FILE"
+  if ! echo "$MIRROR" | sudo tee "$MIRRORLIST_FILE" >/dev/null; then
+    echo "[ERROR] Could not write $MIRRORLIST_FILE" >&2
+    exit 3
+  fi
   echo "[OK] Set ARM mirror: $MIRROR"
 
   echo "Updating package database..."
-  sudo pacman -Syy
+  if ! sudo pacman -Syy; then
+    echo "[ERROR] Could not refresh the package database after writing $MIRRORLIST_FILE" >&2
+    exit 3
+  fi
 fi
