@@ -29,8 +29,7 @@ curl https://asahi-alarm.org/installer-bootstrap.sh | sh
 ```
 
 Choose `Asahi Alarm Minimal (BTRFS)` and allocate at least 50 GB for Linux.
-The plain `Asahi Alarm Minimal` (ext4) works too — the setup below converts
-it — but the BTRFS image already has the right shape.
+The plain `Asahi Alarm Minimal` (ext4) is not covered by the disabled legacy conversion path; use the BTRFS image for the currently documented prerequisite.
 
 ### 2. Boot into Arch and get online
 
