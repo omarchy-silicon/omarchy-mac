@@ -4,6 +4,8 @@
 source "$OMARCHY_INSTALL/helpers/capability-outcomes.sh"
 
 optional_apps_main() {
+  capability_outcomes_require_emitter || return $?
+
   # Only run on aarch64
   if [ "$(uname -m)" != "aarch64" ]; then
     capability_not_applicable optional-proprietary-apps "architecture is not aarch64"

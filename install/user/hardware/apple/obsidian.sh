@@ -9,6 +9,7 @@
 # one by name. Verified on an M2 Max: obsidian-appimage-1.12.7-1-aarch64 builds
 # and runs.
 source "$OMARCHY_INSTALL/helpers/capability-outcomes.sh"
+capability_outcomes_require_emitter || return $?
 
 if [[ $(uname -m) != "aarch64" ]]; then
   capability_not_applicable apple-obsidian "architecture is not aarch64"

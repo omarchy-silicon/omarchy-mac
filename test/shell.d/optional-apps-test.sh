@@ -48,3 +48,20 @@ pass "aarch64 post-install finds the 1Password installer through OMARCHY_PATH"
 [[ ! -e $aur_log ]] ||
   fail "root post-install does not try to build the user-owned screen-share picker"
 pass "root post-install does not try to build the user-owned screen-share picker"
+
+missing_emitter_root="$test_tmp/missing-emitter"
+mkdir -p "$missing_emitter_root/bin"
+cp "$fake_omarchy/bin/omarchy-install-1password" "$missing_emitter_root/bin/"
+rm -f "$install_log"
+set +e
+PATH="$mock_bin:$ROOT/bin:$PATH" \
+  OMARCHY_PATH="$missing_emitter_root" \
+  OMARCHY_INSTALL="$ROOT/install" \
+  OMARCHY_TEST_INSTALL_LOG="$install_log" \
+  OMARCHY_TEST_AUR_LOG="$aur_log" \
+  bash "$ROOT/install/post-install/optional-apps.sh" >"$test_tmp/missing-emitter-output" 2>&1
+status=$?
+set -e
+[[ $status -ne 0 ]] || fail "missing capability emitter rejects optional apps before mutation"
+[[ ! -e $install_log ]] || fail "missing capability emitter blocks the 1Password mutator"
+pass "missing capability emitter blocks optional apps before mutation"

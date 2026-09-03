@@ -1,5 +1,6 @@
 # Setup default work directory (and tries)
 source "$OMARCHY_INSTALL/helpers/capability-outcomes.sh"
+capability_outcomes_require_emitter || return $?
 
 mkdir -p "$HOME/Work"
 mkdir -p "$HOME/Work/tries"

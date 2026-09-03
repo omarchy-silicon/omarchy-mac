@@ -2,6 +2,7 @@
 # xdg-desktop-portal-hyprland shows no source chooser and browser sharing silently
 # degrades to tab-only. The -git package builds on aarch64, and only as the user.
 source "$OMARCHY_INSTALL/helpers/capability-outcomes.sh"
+capability_outcomes_require_emitter || return $?
 
 if [[ $(uname -m) != "aarch64" ]]; then
   capability_not_applicable apple-share-picker "architecture is not aarch64"

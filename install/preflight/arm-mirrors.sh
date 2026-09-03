@@ -5,6 +5,8 @@
 source "$OMARCHY_INSTALL/helpers/capability-outcomes.sh"
 
 arm_mirrors_main() {
+  capability_outcomes_require_emitter || return $?
+
   # Only run on ARM64 systems
   local arch
   arch="$(uname -m)"

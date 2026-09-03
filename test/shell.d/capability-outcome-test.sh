@@ -125,3 +125,38 @@ outcome_status=$?
 set -e
 [[ $outcome_status -ne 0 ]] || fail "missing emitter rejects the valid terminal branch"
 pass "missing emitter rejects the valid terminal branch"
+
+source "$ROOT/install/helpers/capability-outcomes.sh"
+set +e
+OMARCHY_PATH="$missing_root" capability_outcomes_require_emitter >"$test_tmp/missing-health-result" 2>&1
+outcome_status=$?
+set -e
+[[ $outcome_status -eq 127 ]] || fail "missing emitter fails the pre-mutation health guard" "$(cat "$test_tmp/missing-health-result")"
+
+mkdir -p "$test_tmp/broken-emitter/bin"
+cat >"$test_tmp/broken-emitter/bin/omarchy-hw-capability-outcome" <<'SH'
+#!/bin/bash
+
+printf '%s\n' '{}'
+SH
+chmod +x "$test_tmp/broken-emitter/bin/omarchy-hw-capability-outcome"
+set +e
+OMARCHY_PATH="$test_tmp/broken-emitter" capability_outcomes_require_emitter >"$test_tmp/broken-health-result" 2>&1
+outcome_status=$?
+set -e
+[[ $outcome_status -eq 127 ]] || fail "broken emitter fails the pre-mutation health guard" "$(cat "$test_tmp/broken-health-result")"
+pass "emitter health is proven before capability callers can mutate"
+
+for leaf in \
+  "$ROOT/install/preflight/arm-mirrors.sh" \
+  "$ROOT/install/hardware/apple/audio.sh" \
+  "$ROOT/install/post-install/optional-apps.sh" \
+  "$ROOT/install/user/hardware/apple/obsidian.sh" \
+  "$ROOT/install/user/hardware/apple/share-picker.sh" \
+  "$ROOT/install/user/mise-work.sh"; do
+  guard_line=$(grep -n -m1 'capability_outcomes_require_emitter' "$leaf" | cut -d: -f1)
+  first_outcome_line=$(grep -n -m1 'capability_\(valid\|required_unavailable\|optional_unavailable\|not_applicable\)' "$leaf" | cut -d: -f1)
+  [[ -n $guard_line && -n $first_outcome_line && $guard_line -lt $first_outcome_line ]] ||
+    fail "capability caller guards the emitter before its terminal branches: $leaf"
+done
+pass "every P-02 capability caller has a pre-mutation emitter guard"

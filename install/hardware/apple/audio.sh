@@ -27,6 +27,8 @@
 source "$OMARCHY_INSTALL/helpers/capability-outcomes.sh"
 
 apple_audio_main() {
+  capability_outcomes_require_emitter || return $?
+
   compatible="/sys/firmware/devicetree/base/compatible"
   OMARCHY_ASAHI_AUDIO_PACKAGES_CHANGED=0
 

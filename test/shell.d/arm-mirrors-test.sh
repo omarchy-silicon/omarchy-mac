@@ -84,3 +84,26 @@ direct_output=$(PATH="$mock_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_INSTALL="$RO
 [[ $(printf '%s\n' "$direct_output" | wc -l | tr -d ' ') -eq 1 ]] || fail "direct ARM preflight emits one terminal outcome" "$direct_output"
 printf '%s\n' "$direct_output" | grep -Fq '"code":"NOT_APPLICABLE"' || fail "direct ARM preflight is typed not applicable" "$direct_output"
 pass "direct ARM preflight emits one terminal outcome"
+
+preflight_install="$test_tmp/preflight-install"
+missing_emitter_root="$test_tmp/missing-emitter"
+mirror_mutation="$test_tmp/mirror-mutation"
+mkdir -p "$preflight_install/helpers" "$missing_emitter_root"
+cp "$ROOT/install/helpers/capability-outcomes.sh" "$preflight_install/helpers/"
+cat >"$preflight_install/helpers/set-arm-mirrors.sh" <<'SH'
+#!/bin/bash
+
+touch "$ARM_PREFLIGHT_MUTATION"
+SH
+chmod +x "$preflight_install/helpers/set-arm-mirrors.sh"
+set +e
+PATH="$mock_bin:$PATH" \
+  ARM_PREFLIGHT_MUTATION="$mirror_mutation" \
+  OMARCHY_PATH="$missing_emitter_root" \
+  OMARCHY_INSTALL="$preflight_install" \
+  bash "$ROOT/install/preflight/arm-mirrors.sh" >"$test_tmp/missing-emitter-result" 2>&1
+mirror_status=$?
+set -e
+[[ $mirror_status -ne 0 ]] || fail "missing capability emitter rejects ARM preflight"
+[[ ! -e $mirror_mutation ]] || fail "missing capability emitter blocks the ARM mirror mutator"
+pass "missing capability emitter blocks ARM mirror mutation"

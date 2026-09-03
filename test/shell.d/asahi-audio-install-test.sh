@@ -89,7 +89,7 @@ SH
 chmod +x "$stub_bin"/*
 
 run_audio_setup() {
-  local script="$1" arch="$2" machine="$3" install_succeeds="${4:-1}"
+  local script="$1" arch="$2" machine="$3" install_succeeds="${4:-1}" omarchy_path="${5:-$ROOT}"
   printf '%s\0' "$machine" >"$compatible"
 
   PATH="$stub_bin:$PATH" \
@@ -98,7 +98,7 @@ run_audio_setup() {
     AUDIO_INSTALLED_MARKER="$installed_marker" \
     PACKAGE_INSTALL_SUCCEEDS="$install_succeeds" \
     TEST_COMPATIBLE_SOURCE="$compatible" \
-    OMARCHY_PATH="$ROOT" \
+    OMARCHY_PATH="$omarchy_path" \
     OMARCHY_INSTALL="$ROOT/install" \
     bash -euo pipefail -c 'source "$1"' bash "$script" >/dev/null
 }
@@ -118,6 +118,18 @@ OMARCHY_APPLE_COMPATIBLE="$test_tmp/non-apple-compatible" run_audio_setup "$leaf
 grep -Fxq "$expected_call" "$calls" ||
   fail "caller identity environment cannot bypass admitted Apple audio setup" "$(cat "$calls")"
 pass "caller identity environment cannot bypass admitted Apple audio setup"
+
+rm -f "$installed_marker"
+: >"$calls"
+mkdir -p "$test_tmp/no-emitter"
+set +e
+run_audio_setup "$leaf" aarch64 apple,j413 1 "$test_tmp/no-emitter" >"$test_tmp/no-emitter-output" 2>&1
+status=$?
+set -e
+[[ $status -ne 0 ]] || fail "missing capability emitter rejects Apple audio before mutation"
+[[ ! -s $calls && ! -e $installed_marker ]] ||
+  fail "missing capability emitter blocks Apple audio mutation" "$(cat "$calls")"
+pass "missing capability emitter blocks Apple audio before mutation"
 
 run_audio_setup "$leaf" aarch64 apple,j413
 (( $(grep -Fxc "$expected_call" "$calls") == 1 )) ||
