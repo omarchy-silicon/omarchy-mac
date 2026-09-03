@@ -257,9 +257,9 @@ run_system_setup() {
   omarchy-provision-user --first-install
 }
 
-# On a btrfs root (see omarchy-system-btrfs-migrate) record the finished
-# install as the @factory baseline, mirroring the snapshot the Quattro ISO
-# takes, so omarchy-system-factory-reset can return the machine to this state.
+# On a btrfs root record the finished install as the @factory baseline,
+# mirroring the snapshot the Quattro ISO takes, so
+# omarchy-system-factory-reset can return the machine to this state.
 # The reset itself scrubs user accounts from the clone, so a baseline taken
 # after user creation is fine. Silently does nothing on ext4 roots.
 snapshot_factory_baseline() {

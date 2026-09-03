@@ -25,6 +25,14 @@ readonly limine_dependencies=(
   limine-snapper-sync
 )
 
+# These utilities remain in the checkout for P-07's retirement/hardening work,
+# but an Apple clean-install package must not ship the legacy conversion graph.
+readonly legacy_conversion_entrypoints=(
+  omarchy-mac-setup
+  omarchy-system-boot-to-esp
+  omarchy-system-btrfs-migrate
+)
+
 readonly packages=(
   omarchy-keyring
   ttf-jetbrains-mono-nerd-basic
@@ -90,6 +98,21 @@ strip_limine_dependencies() {
   done
 }
 
+stage_apple_source() {
+  local source_root="$1" staged_root="$2" entry
+
+  [[ ! -e "$staged_root" && ! -L "$staged_root" ]] ||
+    fail "refusing to overwrite existing Apple source staging destination: $staged_root"
+  cp -a "$source_root" "$staged_root"
+  for entry in "${legacy_conversion_entrypoints[@]}"; do
+    [[ -f "$staged_root/bin/$entry" ]] ||
+      fail "Apple source is missing legacy entrypoint bin/$entry"
+    rm -f -- "$staged_root/bin/$entry"
+    [[ ! -e "$staged_root/bin/$entry" ]] ||
+      fail "could not omit legacy entrypoint bin/$entry from staged source"
+  done
+}
+
 # makepkg runs with --nodeps because the runtime dependencies include packages
 # built here, so pacman cannot resolve them yet. That skips makedepends too,
 # leaving the build tools to be installed up front.
@@ -130,7 +153,7 @@ remove_old_packages() {
 
 build_package() {
   local package="$1" pkgbuild_source="$2" build_dir="$3"
-  local artifact
+  local artifact package_source="$checkout"
   local -a built=()
 
   log "Building $package"
@@ -139,6 +162,8 @@ build_package() {
 
   if [[ $package == "omarchy" ]]; then
     strip_limine_dependencies "$build_dir/$package/PKGBUILD"
+    package_source="$build_dir/omarchy-source"
+    stage_apple_source "$checkout" "$package_source"
   fi
   if [[ $package == "omarchy" || $package == "omarchy-settings" ]]; then
     set_pkgrel "$build_dir/$package/PKGBUILD"
@@ -148,7 +173,7 @@ build_package() {
   # a rebuild does not re-fetch the 125 MB font archive.
   (
     cd "$build_dir/$package"
-    SRCDEST="$source_cache" OMARCHY_SRC="$checkout" \
+    SRCDEST="$source_cache" OMARCHY_SRC="$package_source" \
       makepkg --force --noconfirm --nodeps --skipinteg
   )
 
