@@ -7,7 +7,7 @@ optional_apps_main() {
   # Only run on aarch64
   if [ "$(uname -m)" != "aarch64" ]; then
     capability_not_applicable optional-proprietary-apps "architecture is not aarch64"
-    return 0
+    return $?
   fi
 
   # This leaf runs from omarchy-apply-system, which puts the checkout's bin/

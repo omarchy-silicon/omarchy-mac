@@ -95,3 +95,33 @@ fi
 [[ ! -e $marker ]] || fail "rejected required outcome does not mutate its target"
 grep -Fq 'REQUIRED_CAPABILITY_UNAVAILABLE' "$test_tmp/required-result" || fail "required gap has the typed rejection"
 pass "required unavailable outcome is nonzero and non-mutating"
+
+missing_root="$test_tmp/no-emitter"
+mkdir -p "$missing_root"
+cat >"$test_tmp/x86-uname" <<'SH'
+#!/bin/bash
+
+printf '%s\n' x86_64
+SH
+chmod +x "$test_tmp/x86-uname"
+mkdir -p "$test_tmp/x86-bin"
+ln -s "$test_tmp/x86-uname" "$test_tmp/x86-bin/uname"
+
+for leaf in \
+  "$ROOT/install/preflight/arm-mirrors.sh" \
+  "$ROOT/install/hardware/apple/audio.sh" \
+  "$ROOT/install/post-install/optional-apps.sh"; do
+  set +e
+  PATH="$test_tmp/x86-bin:$PATH" OMARCHY_PATH="$missing_root" OMARCHY_INSTALL="$ROOT/install" bash "$leaf" >"$test_tmp/missing-emitter-result" 2>&1
+  outcome_status=$?
+  set -e
+  [[ $outcome_status -ne 0 ]] || fail "missing emitter rejects terminal branch: $leaf" "$(cat "$test_tmp/missing-emitter-result")"
+done
+pass "missing emitter rejects every not-applicable terminal branch"
+
+set +e
+OMARCHY_PATH="$missing_root" OMARCHY_INSTALL="$ROOT/install" bash -euo pipefail -c 'source "$1"; capability_valid audio true "installed"' bash "$ROOT/install/helpers/capability-outcomes.sh" >"$test_tmp/missing-valid-result" 2>&1
+outcome_status=$?
+set -e
+[[ $outcome_status -ne 0 ]] || fail "missing emitter rejects the valid terminal branch"
+pass "missing emitter rejects the valid terminal branch"

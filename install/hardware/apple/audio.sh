@@ -34,11 +34,11 @@ apple_audio_main() {
   # otherwise a Raspberry Pi would install the Asahi stack too.
   if [[ $(uname -m) != "aarch64" ]]; then
     capability_not_applicable apple-audio-stack "architecture is not aarch64"
-    return 0
+    return $?
   fi
   if ! grep -Faiq 'apple,' "$compatible"; then
     capability_not_applicable apple-audio-stack "device-tree identity is not Apple Silicon"
-    return 0
+    return $?
   fi
 
   # pkg-missing rather than a bare pkg-add, so the migration can tell whether this

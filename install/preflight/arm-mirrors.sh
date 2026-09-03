@@ -13,7 +13,7 @@ arm_mirrors_main() {
       echo "[DEBUG] Not an ARM64 system (detected: $arch), skipping ARM mirror setup"
     fi
     capability_not_applicable arm-package-mirror "architecture is not aarch64"
-    return 0
+    return $?
   fi
 
   # Check if we're in an Arch Linux ARM environment
@@ -22,7 +22,7 @@ arm_mirrors_main() {
       echo "[DEBUG] Not an Arch Linux system, skipping ARM mirror setup"
     fi
     capability_not_applicable arm-package-mirror "system is not Arch Linux ARM"
-    return 0
+    return $?
   fi
 
   echo "[INFO] Detected ARM64 Arch Linux system, configuring optimal mirrors..."
@@ -39,7 +39,7 @@ arm_mirrors_main() {
   # Use --test to verify connectivity, --backup for safety
   if "$arm_mirror_script" --auto --test --backup --verbose; then
     capability_valid arm-package-mirror true "ARM mirror configuration completed"
-    return 0
+    return $?
   else
     capability_required_unavailable arm-package-mirror "ARM mirror configuration failed"
     return $?
