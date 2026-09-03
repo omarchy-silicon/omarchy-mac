@@ -3533,6 +3533,17 @@
       "status": "planned"
     },
     {
+      "id": "P03-command-omarchy-hw-capability-outcome",
+      "owner": "platform-team",
+      "dependency": "ARM package/runtime behavior and a reviewed receipt",
+      "next_action": "Run the exact ARM probe for command:omarchy-hw-capability-outcome and save its receipt.",
+      "acceptance": {
+        "command": "python3 tools/apple-silicon/parity-census.py accept-entry --id command:omarchy-hw-capability-outcome --evidence platform/apple-silicon/evidence/command__omarchy-hw-capability-outcome.json",
+        "evidence": "platform/apple-silicon/evidence/command__omarchy-hw-capability-outcome.json"
+      },
+      "status": "planned"
+    },
+    {
       "id": "P03-command-omarchy-hw-clamshell",
       "owner": "platform-team",
       "dependency": "ARM package/runtime behavior and a reviewed receipt",
