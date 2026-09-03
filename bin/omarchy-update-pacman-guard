@@ -5,9 +5,20 @@
 
 set -euo pipefail
 
-if [[ ${OMARCHY_UPDATE_PACMAN:-} == "1" || ${OMARCHY_ALLOW_DIRECT_PACMAN:-} == "1" ]]; then
-  exit 0
-fi
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || exit 3
+case "$platform_architecture" in
+  aarch64)
+    cat >&2 <<'MESSAGE'
+
+Apple platform package transactions are closed until the verified platform
+update broker is shipped; use `omarchy update platform status`.
+
+MESSAGE
+    exit 3
+    ;;
+  x86_64) ;;
+  *) exit 3 ;;
+esac
 
 pacman_args=()
 if [[ -n ${OMARCHY_PACMAN_CMDLINE:-} ]]; then
@@ -42,6 +53,12 @@ if (( has_sync && has_sysupgrade )); then
 fi
 
 (( is_system_upgrade )) || exit 0
+
+if [[ $platform_architecture == "x86_64" ]]; then
+  if [[ ${OMARCHY_UPDATE_PACMAN:-} == "1" || ${OMARCHY_ALLOW_DIRECT_PACMAN:-} == "1" ]]; then
+    exit 0
+  fi
+fi
 
 cat >&2 <<'MESSAGE'
 

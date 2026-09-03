@@ -4,6 +4,22 @@
 
 set -euo pipefail
 
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  echo "Platform identity is unavailable; refusing direct checkout updates." >&2
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    echo "Apple platform updates require omarchy update platform; refusing direct checkout updates." >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    echo "Platform identity is not a recognized safe non-Apple architecture; refusing direct checkout updates." >&2
+    exit 3
+    ;;
+esac
+
 [[ $OMARCHY_PATH != "/usr/share/omarchy" ]] || exit 0
 
 if ! git -C "$OMARCHY_PATH" rev-parse --is-inside-work-tree >/dev/null 2>&1; then

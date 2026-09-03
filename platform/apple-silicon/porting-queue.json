@@ -7141,6 +7141,17 @@
       "status": "planned"
     },
     {
+      "id": "P03-command-omarchy-update-platform",
+      "owner": "platform-team",
+      "dependency": "ARM package/runtime behavior and a reviewed receipt",
+      "next_action": "Run the exact ARM probe for command:omarchy-update-platform and save its receipt.",
+      "acceptance": {
+        "command": "python3 tools/apple-silicon/parity-census.py accept-entry --id command:omarchy-update-platform --evidence platform/apple-silicon/evidence/command__omarchy-update-platform.json",
+        "evidence": "platform/apple-silicon/evidence/command__omarchy-update-platform.json"
+      },
+      "status": "planned"
+    },
+    {
       "id": "P03-command-omarchy-update-requires-free-space",
       "owner": "platform-team",
       "dependency": "ARM package/runtime behavior and a reviewed receipt",

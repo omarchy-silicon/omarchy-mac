@@ -4,6 +4,23 @@
 # omarchy:requires-sudo=true
 
 set -e
+
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  echo "Platform identity is unavailable; refusing direct firmware updates." >&2
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    echo "Apple platform updates require omarchy update platform; refusing direct firmware updates." >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    echo "Platform identity is not a recognized safe non-Apple architecture; refusing direct firmware updates." >&2
+    exit 3
+    ;;
+esac
+
 echo -e "\e[32mUpdate Firmware\e[0m"
 
 if omarchy-cmd-missing fwupdmgr; then

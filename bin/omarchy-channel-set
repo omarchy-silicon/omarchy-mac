@@ -9,6 +9,21 @@ set -euo pipefail
 usage() { echo "Usage: omarchy-channel-set [stable|rc|edge|dev]"; }
 fail() { echo "Error: $*" >&2; exit 1; }
 
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) ||
+  fail "Platform identity is unavailable; refusing channel changes. Use omarchy update platform."
+case "$platform_architecture" in
+  aarch64)
+    fail "Apple platform channels are closed; use omarchy update platform."
+    ;;
+  x86_64)
+    ;;
+  *)
+    fail "Platform identity is not a recognized safe non-Apple architecture; refusing channel changes."
+    ;;
+esac
+
+(( $# == 1 )) || { usage; exit 1; }
+
 confirm_dev() {
   cat <<'WARNING'
 

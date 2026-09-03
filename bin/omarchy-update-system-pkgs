@@ -5,6 +5,22 @@
 
 set -e
 
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  echo "Platform identity is unavailable; refusing direct system package updates." >&2
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    echo "Apple platform updates require omarchy update platform; refusing direct system package updates." >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    echo "Platform identity is not a recognized safe non-Apple architecture; refusing direct system package updates." >&2
+    exit 3
+    ;;
+esac
+
 # The conflict handler's last resort: pacman puts its questions to the person
 # running the update instead of answering them itself. Nothing here may capture
 # a stream, because an upgrade without --noconfirm prompts on stderr. The

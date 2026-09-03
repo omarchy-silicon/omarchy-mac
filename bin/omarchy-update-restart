@@ -1,6 +1,22 @@
 #!/bin/bash
 # omarchy:summary=Restart after an update when the kernel changed
 
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  echo "Platform identity is unavailable; refusing direct restart operations." >&2
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    echo "Apple platform updates require omarchy update platform; refusing direct restart operations." >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    echo "Platform identity is not a recognized safe non-Apple architecture; refusing direct restart operations." >&2
+    exit 3
+    ;;
+esac
+
 # Compare kernel version before and after updates.
 # Mac fork: this fork ships the Apple-Silicon kernel, so kernel-update detection
 # compares the linux-asahi *package version* (not upstream's `uname -r` vs

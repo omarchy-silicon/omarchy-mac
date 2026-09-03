@@ -5,6 +5,22 @@
 
 set -e
 
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  echo "Platform identity is unavailable; refusing direct orphan package operations." >&2
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    echo "Apple platform updates require omarchy update platform; refusing direct orphan package operations." >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    echo "Platform identity is not a recognized safe non-Apple architecture; refusing direct orphan package operations." >&2
+    exit 3
+    ;;
+esac
+
 mapfile -t orphans < <(pacman -Qtdq 2>/dev/null || true)
 (( ${#orphans[@]} )) || exit 0
 

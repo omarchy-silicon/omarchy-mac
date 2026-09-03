@@ -2,6 +2,22 @@
 
 # omarchy:summary=Update AUR packages if any are installed
 
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  echo "Platform identity is unavailable; refusing direct AUR updates." >&2
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    echo "Apple platform updates require omarchy update platform; refusing direct AUR updates." >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    echo "Platform identity is not a recognized safe non-Apple architecture; refusing direct AUR updates." >&2
+    exit 3
+    ;;
+esac
+
 if pacman -Qem >/dev/null; then
   if omarchy-pkg-aur-accessible; then
     echo -e "\e[32m\nUpdate AUR packages\e[0m"

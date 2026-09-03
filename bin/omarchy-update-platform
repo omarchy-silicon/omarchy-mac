@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# omarchy:group=update
+# omarchy:summary=Inspect or hold the Apple platform update path.
+# omarchy:args=<status|apply|rollback>
+# omarchy:examples=omarchy update platform status
+
+set -euo pipefail
+
+SCHEMA="omarchy.platform-update/v1"
+
+finish() {
+  local operation="$1" code="$2" decision="$3" status="$4"
+  printf '{"schema":"%s","operation":"%s","decision":"%s","code":"%s","process_status":%d}\n' \
+    "$SCHEMA" "$operation" "$decision" "$code" "$status"
+  exit "$status"
+}
+
+architecture=""
+if ! architecture=$(/usr/bin/uname -m 2>/dev/null) || [[ -z $architecture ]]; then
+  finish "unknown" "PLATFORM_IDENTITY_UNAVAILABLE" "DENY" 3
+fi
+
+case "$architecture" in
+  aarch64|x86_64) ;;
+  *) finish "unknown" "PLATFORM_IDENTITY_UNRECOGNIZED" "DENY" 3 ;;
+esac
+
+if (( $# != 1 )); then
+  finish "invalid" "UPDATE_INVALID_ARGUMENT" "DENY" 2
+fi
+
+operation="$1"
+case "$operation" in
+  status|apply|rollback) ;;
+  *) finish "invalid" "UPDATE_INVALID_ARGUMENT" "DENY" 2 ;;
+esac
+
+if [[ $architecture != "aarch64" ]]; then
+  finish "$operation" "NOT_APPLICABLE" "ALLOW" 0
+fi
+
+# A production I-04 broker and verified F-05 authority are not shipped yet.
+# In particular, no structural candidate bytes, environment value, or caller
+# selector can authorize an update or rollback here.
+finish "$operation" "UPDATE_AUTHORITY_UNAVAILABLE" "HOLD" 3

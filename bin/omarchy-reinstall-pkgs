@@ -5,6 +5,22 @@
 
 set -e
 
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  echo "Platform identity is unavailable; refusing direct package reinstallation." >&2
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    echo "Apple platform updates require omarchy update platform; refusing direct package reinstallation." >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    echo "Platform identity is not a recognized safe non-Apple architecture; refusing direct package reinstallation." >&2
+    exit 3
+    ;;
+esac
+
 # Reinstall all default Omarchy packages from the stable channel and downgrade any packages that are too new.
 
 # Set the package repository to the stable mirrors
