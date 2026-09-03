@@ -7,6 +7,33 @@
 
 set -e
 
+if (( $# > 1 || ( $# == 1 && ${1:-} != "-y" ) )); then
+  printf '%s\n' '{"schema":"omarchy.platform-update/v1","operation":"invalid","decision":"DENY","code":"UPDATE_INVALID_ARGUMENT","process_status":2}'
+  exit 2
+fi
+
+# Apple platform updates have one closed entrypoint. This probe must precede
+# logging, locking, snapshots, package work, migrations, hooks, and reboot.
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  printf '%s\n' '{"schema":"omarchy.platform-update/v1","operation":"apply","decision":"DENY","code":"PLATFORM_IDENTITY_UNAVAILABLE","process_status":3}'
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    if [[ -z ${OMARCHY_PATH:-} || ! -d $OMARCHY_PATH || -L $OMARCHY_PATH || ! -f $OMARCHY_PATH/bin/omarchy-update-platform || -L $OMARCHY_PATH/bin/omarchy-update-platform || ! -x $OMARCHY_PATH/bin/omarchy-update-platform ]]; then
+      printf '%s\n' '{"schema":"omarchy.platform-update/v1","operation":"apply","decision":"DENY","code":"UPDATE_ENTRYPOINT_UNAVAILABLE","process_status":3}'
+      exit 3
+    fi
+    exec "$OMARCHY_PATH/bin/omarchy-update-platform" apply
+    ;;
+  x86_64)
+    ;;
+  *)
+    printf '%s\n' '{"schema":"omarchy.platform-update/v1","operation":"apply","decision":"DENY","code":"PLATFORM_IDENTITY_UNRECOGNIZED","process_status":3}'
+    exit 3
+    ;;
+esac
+
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
   exec env OMARCHY_UPDATE_LOGGED=1 script -qefc "$script_command" "/tmp/omarchy-update.log"

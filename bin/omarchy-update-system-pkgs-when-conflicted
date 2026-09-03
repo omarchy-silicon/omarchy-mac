@@ -18,6 +18,22 @@
 
 set -e
 
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  echo "Platform identity is unavailable; refusing direct conflict recovery." >&2
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    echo "Apple platform updates require omarchy update platform; refusing direct conflict recovery." >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    echo "Platform identity is not a recognized safe non-Apple architecture; refusing direct conflict recovery." >&2
+    exit 3
+    ;;
+esac
+
 [[ ${OMARCHY_UPDATE_CONFLICT:-} == 1 ]] || {
   echo "omarchy-update-system-pkgs-when-conflicted runs as part of omarchy update" >&2
   exit 1

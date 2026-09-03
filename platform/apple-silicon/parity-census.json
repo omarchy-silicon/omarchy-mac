@@ -11700,6 +11700,24 @@
       "notes": "ARM parity receipt is pending; source presence is not evidence of parity."
     },
     {
+      "id": "command:omarchy-update-platform",
+      "kind": "command",
+      "sources": [
+        {
+          "kind": "command",
+          "path": "bin/omarchy-update-platform"
+        }
+      ],
+      "disposition": "blocked",
+      "evidence": {
+        "kind": "pending",
+        "reference": "platform/apple-silicon/evidence/command__omarchy-update-platform.json"
+      },
+      "owner": "platform-team",
+      "queue_id": "P03-command-omarchy-update-platform",
+      "notes": "ARM parity receipt is pending; source presence is not evidence of parity."
+    },
+    {
       "id": "command:omarchy-update-requires-free-space",
       "kind": "command",
       "sources": [

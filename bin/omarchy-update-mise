@@ -2,6 +2,22 @@
 
 # omarchy:summary=Update mise-managed tools
 
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  echo "Platform identity is unavailable; refusing direct mise updates." >&2
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    echo "Apple platform updates require omarchy update platform; refusing direct mise updates." >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    echo "Platform identity is not a recognized safe non-Apple architecture; refusing direct mise updates." >&2
+    exit 3
+    ;;
+esac
+
 if omarchy-cmd-present mise; then
   echo -e "\e[32m\nUpdate mise tools\e[0m"
 

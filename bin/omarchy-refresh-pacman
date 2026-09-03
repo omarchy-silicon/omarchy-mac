@@ -3,6 +3,28 @@
 # omarchy:summary=Overwrite the package configuration for /etc/pacman with the Omarchy default of using its dedicated mirrors and repositories, then update all packages.
 # omarchy:requires-sudo=true
 
+platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
+  echo "Platform identity is unavailable; refusing direct package-source updates." >&2
+  exit 3
+}
+case "$platform_architecture" in
+  aarch64)
+    echo "Apple platform updates require omarchy update platform; refusing direct package-source updates." >&2
+    exit 3
+    ;;
+  x86_64) ;;
+  *)
+    echo "Platform identity is not a recognized safe non-Apple architecture; refusing direct package-source updates." >&2
+    exit 3
+    ;;
+esac
+
+(( $# <= 1 )) || { echo "Error: expected at most one channel argument." >&2; exit 1; }
+if (( $# == 1 )) && [[ $1 != "stable" && $1 != "rc" && $1 != "edge" ]]; then
+  echo "Error: Invalid channel '$1'. Must be one of: stable, rc, edge" >&2
+  exit 1
+fi
+
 sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
 sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
 if [[ -f /etc/pacman.d/mirrorlist.asahi-alarm ]]; then
