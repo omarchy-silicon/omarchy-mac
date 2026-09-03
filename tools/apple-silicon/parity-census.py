@@ -158,7 +158,11 @@ def desktop_records(root: Path, tracked: dict[str, str], packages: dict[str, lis
         if previous and previous != path:
             raise CensusError(f"ambiguous normalized launcher identity {slug}: {previous}, {path}")
         seen_slugs[slug] = path
-        records.append((slug, path, command if command in packages else None))
+        # Merge only when the launcher identity and the package identity are
+        # exact. Generic wrappers (for example xdg-terminal-exec) are shared
+        # plumbing, not proof that two unrelated launchers are one product.
+        package = command if command in packages and slug == command.lower() else None
+        records.append((slug, path, package))
     return records
 
 
@@ -203,7 +207,7 @@ def queue_for(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if entry["disposition"] != "blocked":
             continue
         expected = entry["evidence"]["reference"]
-        items.append({"id": entry["queue_id"], "owner": entry["owner"], "dependency": "ARM package/runtime behavior and a reviewed receipt", "next_action": f"Run the exact ARM probe for {entry['id']} and save its receipt.", "acceptance": {"command": f"python3 tools/apple-silicon/parity-census.py verify-entry --id {shlex.quote(entry['id'])} --evidence {shlex.quote(expected)}", "evidence": expected}, "status": "planned"})
+        items.append({"id": entry["queue_id"], "owner": entry["owner"], "dependency": "ARM package/runtime behavior and a reviewed receipt", "next_action": f"Run the exact ARM probe for {entry['id']} and save its receipt.", "acceptance": {"command": f"python3 tools/apple-silicon/parity-census.py accept-entry --id {shlex.quote(entry['id'])} --evidence {shlex.quote(expected)}", "evidence": expected}, "status": "planned"})
     return sorted(items, key=lambda item: item["id"])
 
 
@@ -223,13 +227,17 @@ def sha256_git(root: Path, path: str) -> str:
     return hashlib.sha256(git_blob(root, path)).hexdigest()
 
 
-def validate_receipt(root: Path, tracked: dict[str, str], entry: dict[str, Any], receipt_path: str) -> None:
+def validate_receipt(root: Path, tracked: dict[str, str], entry: dict[str, Any], receipt_path: str, transition: bool = False) -> dict[str, Any]:
     safe_repo_path(root, receipt_path, tracked, "receipt", {"100644"})
     receipt = load_json(root / receipt_path, "receipt")
     if not isinstance(receipt, dict) or set(receipt) != RECEIPT_KEYS:
         raise CensusError(f"receipt has wrong fields: {receipt_path}")
-    if receipt["entry_id"] != entry["id"] or receipt["disposition"] != entry["disposition"]:
+    if receipt["entry_id"] != entry["id"] or (not transition and receipt["disposition"] != entry["disposition"]):
         raise CensusError(f"receipt binding mismatch: {receipt_path}")
+    if receipt["disposition"] not in DISPOSITIONS:
+        raise CensusError(f"receipt disposition is invalid: {receipt_path}")
+    if transition and (entry["disposition"] != "blocked" or receipt["disposition"] == "blocked"):
+        raise CensusError(f"acceptance must transition blocked entry to a non-blocked disposition: {receipt_path}")
     if receipt["architecture"] != "aarch64":
         raise CensusError(f"receipt architecture must be aarch64: {receipt_path}")
     require_string(receipt["command"], "receipt.command")
@@ -250,9 +258,16 @@ def validate_receipt(root: Path, tracked: dict[str, str], entry: dict[str, Any],
     test_evidence = receipt["test_evidence"]
     if not isinstance(test_evidence, dict) or set(test_evidence) != RECEIPT_DIGEST_KEYS:
         raise CensusError(f"receipt.test_evidence is malformed: {receipt_path}")
-    safe_repo_path(root, test_evidence["path"], tracked, "receipt test evidence", {"100644", "100755"})
+    if not test_evidence["path"].startswith("test/"):
+        raise CensusError(f"receipt test evidence must be under test/: {receipt_path}")
+    safe_repo_path(root, test_evidence["path"], tracked, "receipt test evidence", {"100755"})
     if test_evidence["sha256"] != sha256_git(root, test_evidence["path"]):
         raise CensusError(f"stale test evidence digest: {receipt_path}")
+    if entry["disposition"] != "blocked" and receipt["exit_status"] != 0:
+        raise CensusError(f"non-blocked receipt must have exit_status 0: {receipt_path}")
+    if transition and receipt["exit_status"] != 0:
+        raise CensusError(f"accepted receipt must have exit_status 0: {receipt_path}")
+    return receipt
 
 
 def validate(root: Path, manifest_path: Path, queue_path: Path) -> tuple[list[str], Counter[str], int, int]:
@@ -379,7 +394,7 @@ def validate(root: Path, manifest_path: Path, queue_path: Path) -> tuple[list[st
             if item.get("status") == "complete" and entry.get("disposition") == "blocked":
                 errors.append(f"{label} cannot be complete while entry is blocked")
             acceptance = item.get("acceptance")
-            if not isinstance(acceptance, dict) or set(acceptance) != ACCEPTANCE_KEYS or not isinstance(acceptance.get("command"), str) or entry["id"] not in acceptance["command"]:
+            if not isinstance(acceptance, dict) or set(acceptance) != ACCEPTANCE_KEYS or not isinstance(acceptance.get("command"), str) or "accept-entry" not in acceptance["command"] or entry["id"] not in acceptance["command"]:
                 errors.append(f"{label}.acceptance.command must name exact entry")
             if isinstance(acceptance, dict) and acceptance.get("evidence") != entry.get("evidence", {}).get("reference"):
                 errors.append(f"{label}.acceptance.evidence must match entry receipt path")
@@ -437,8 +452,13 @@ def preserve_inventory(root: Path, manifest_path: Path, queue_path: Path) -> Non
     for item in generated_queue:
         prior = old_queue_items.get(item["id"])
         if prior is not None:
+            generated_acceptance = copy.deepcopy(item["acceptance"])
             item.clear()
             item.update(copy.deepcopy(prior))
+            # The acceptance protocol is an executable contract, not a
+            # reviewed disposition field; migrate old verify-entry commands
+            # to the fail-closed clearance command.
+            item["acceptance"] = generated_acceptance
     atomic_write(manifest_path, {"schema": SCHEMA, "entries": updated})
     atomic_write(queue_path, {"schema": SCHEMA, "items": sorted(generated_queue, key=lambda item: item["id"])})
 
@@ -454,6 +474,59 @@ def verify_entry(root: Path, manifest_path: Path, entry_id: str, receipt_path: s
         raise CensusError("receipt path does not exactly match manifest evidence path")
     validate_receipt(root, tracked, entry, receipt_path)
     print(f"VERIFIED: {entry_id}")
+    return 0
+
+
+def accept_entry(root: Path, manifest_path: Path, queue_path: Path, entry_id: str, receipt_path: str) -> int:
+    tracked = tracked_index(root)
+    manifest = load_json(manifest_path, "manifest")
+    queue = load_json(queue_path, "queue")
+    entries = manifest.get("entries", []) if isinstance(manifest, dict) else []
+    items = queue.get("items", []) if isinstance(queue, dict) else []
+    matching_entries = [entry for entry in entries if isinstance(entry, dict) and entry.get("id") == entry_id]
+    if len(matching_entries) != 1:
+        raise CensusError(f"accept-entry requires exactly one manifest entry: {entry_id}")
+    entry = matching_entries[0]
+    if entry.get("disposition") != "blocked" or entry.get("evidence", {}).get("reference") != receipt_path:
+        raise CensusError("accept-entry receipt does not exactly match the blocked manifest item")
+    matching_items = [item for item in items if isinstance(item, dict) and item.get("id") == entry.get("queue_id")]
+    if len(matching_items) != 1:
+        raise CensusError(f"accept-entry requires exactly one queue row: {entry_id}")
+    item = matching_items[0]
+    acceptance = item.get("acceptance", {})
+    if not isinstance(acceptance, dict) or entry_id not in acceptance.get("command", "") or acceptance.get("evidence") != receipt_path:
+        raise CensusError("accept-entry queue acceptance does not bind the exact receipt")
+    receipt = validate_receipt(root, tracked, entry, receipt_path, transition=True)
+    updated_manifest = copy.deepcopy(manifest)
+    updated_queue = copy.deepcopy(queue)
+    updated_entry = next(item for item in updated_manifest["entries"] if item["id"] == entry_id)
+    updated_entry["disposition"] = receipt["disposition"]
+    updated_entry["evidence"] = {"kind": "receipt", "reference": receipt_path}
+    updated_entry["queue_id"] = None
+    updated_queue["items"] = [item for item in updated_queue["items"] if item.get("id") != entry["queue_id"]]
+    manifest_tmp = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=manifest_path.parent, prefix=f".{manifest_path.name}.", delete=False)
+    queue_tmp = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=queue_path.parent, prefix=f".{queue_path.name}.", delete=False)
+    try:
+        with manifest_tmp:
+            json.dump(updated_manifest, manifest_tmp, indent=2, ensure_ascii=False)
+            manifest_tmp.write("\n")
+        with queue_tmp:
+            json.dump(updated_queue, queue_tmp, indent=2, ensure_ascii=False)
+            queue_tmp.write("\n")
+        errors, _, _, _ = validate(root, Path(manifest_tmp.name), Path(queue_tmp.name))
+        if errors:
+            raise CensusError("accept-entry postcondition failed: " + "; ".join(errors))
+        os.replace(manifest_tmp.name, manifest_path)
+        os.replace(queue_tmp.name, queue_path)
+    except OSError as error:
+        raise CensusError(f"accept-entry atomic update failed: {error}") from error
+    finally:
+        for temporary in (manifest_tmp.name, queue_tmp.name):
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+    print(f"ACCEPTED: {entry_id}")
     return 0
 
 
@@ -476,6 +549,10 @@ def main() -> int:
             if not args.entry_id or not args.evidence:
                 raise CensusError("verify-entry requires --id and --evidence")
             return verify_entry(root, manifest, args.entry_id, args.evidence)
+        if args.subcommand == "accept-entry":
+            if not args.entry_id or not args.evidence:
+                raise CensusError("accept-entry requires --id and --evidence")
+            return accept_entry(root, manifest, queue, args.entry_id, args.evidence)
         if args.update_inventory:
             preserve_inventory(root, manifest, queue)
         errors, summary, discovered, manifest_count = validate(root, manifest, queue)

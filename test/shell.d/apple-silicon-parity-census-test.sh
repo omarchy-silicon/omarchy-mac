@@ -21,6 +21,7 @@ printf '# no packages\n' >"$fixture/install/omarchy-other.packages"
 printf '[Desktop Entry]\nType=Application\nName=Battle.net\nExec=omarchy-launch-battlenet\n' >"$fixture/default/applications/battlenet.desktop"
 printf '[Desktop Entry]\nType=Application\nName=Foot\nExec=foot\n' >"$fixture/applications/foot.desktop"
 printf '# evidence fixture\n' >"$fixture/test/shell.d/aarch64-compat-test.sh"
+chmod +x "$fixture/test/shell.d/aarch64-compat-test.sh"
 cp "$ROOT/tools/apple-silicon/parity-census.py" "$fixture/tools/apple-silicon/parity-census.py"
 git -C "$fixture" init -q
 git -C "$fixture" add .
@@ -32,7 +33,7 @@ baseline_manifest="$test_tmp/baseline-manifest.json"
 baseline_queue="$test_tmp/baseline-queue.json"
 cp "$manifest" "$baseline_manifest"
 cp "$queue" "$baseline_queue"
-expect_pass() { local label=$1; shift; "$@" >/dev/null || fail "$label"; pass "$label"; }
+expect_pass() { local label=$1; shift; local output; if ! output=$("$@" 2>&1); then fail "$label" "$output"; fi; pass "$label"; }
 expect_fail() { local label=$1; shift; if "$@" >/dev/null 2>&1; then fail "$label" "checker unexpectedly passed"; fi; pass "$label"; }
 check() { "${checker[@]}" --check; }
 expect_pass "generated fixture census passes" check
@@ -107,6 +108,8 @@ expect_pass "reviewed fields survive inventory update" "${checker[@]}" --update-
 [[ $reviewed_queue == "$(jq -c '[.items[0].owner,.items[0].status]' "$queue")" ]] || fail "reviewed queue fields were overwritten"
 git -C "$fixture" reset -q HEAD -- bin/omarchy-new-tracked
 expect_fail "ambiguous inventory removals are rejected" "${checker[@]}" --update-inventory
+cp "$baseline_manifest" "$manifest"
+cp "$baseline_queue" "$queue"
 entry_id=$(jq -r '.entries[0].id' "$manifest")
 receipt=$(jq -r '.entries[0].evidence.reference' "$manifest")
 verify=(python3 "$fixture/tools/apple-silicon/parity-census.py" --root "$fixture" verify-entry --id "$entry_id" --evidence "$receipt")
@@ -115,7 +118,23 @@ python3 -c 'import hashlib,json,os,subprocess,sys; m,root,r=sys.argv[1:]; d=json
 git -C "$fixture" add "${receipt#"$fixture"/}" platform/apple-silicon/parity-census.json
 expect_pass "bound receipt verifies" "${verify[@]}"
 expect_fail "mismatched receipt path is rejected" python3 "$fixture/tools/apple-silicon/parity-census.py" --root "$fixture" verify-entry --id "$entry_id" --evidence "platform/apple-silicon/evidence/other.json"
-printf '[Desktop Entry]\nType=Application\nName=Battle.net\nExec=omarchy-launch-battlenet\n# stale probe mutation\n' >"$fixture/default/applications/battlenet.desktop"
-git -C "$fixture" add default/applications/battlenet.desktop
+accept=(python3 "$fixture/tools/apple-silicon/parity-census.py" --root "$fixture" accept-entry --id "$entry_id" --evidence "$receipt")
+jq '.disposition="native" | .exit_status=1' "$fixture/$receipt" >"$fixture/$receipt.tmp" && mv "$fixture/$receipt.tmp" "$fixture/$receipt"
+git -C "$fixture" add "${receipt#"$fixture"/}"
+expect_fail "nonzero receipt cannot clear a blocked entry" "${accept[@]}"
+jq '.disposition="native" | .exit_status=0' "$fixture/$receipt" >"$fixture/$receipt.tmp" && mv "$fixture/$receipt.tmp" "$fixture/$receipt"
+git -C "$fixture" add "${receipt#"$fixture"/}"
+second_entry=$(jq -c '.entries[1]' "$manifest")
+second_queue=$(jq -c '.items[1]' "$queue")
+expect_pass "one-item acceptance atomically clears entry and queue row" "${accept[@]}"
+expect_pass "accepted fixture census passes" check
+[[ $(jq -r --arg id "$entry_id" '.entries[] | select(.id==$id) | .disposition' "$manifest") == native ]] || fail "accept-entry did not update only matching disposition"
+[[ $(jq -r --arg id "$entry_id" '.items[] | select(.id==$id) | .id' "$queue") == "" ]] || fail "accept-entry did not remove matching queue row"
+[[ $second_entry == "$(jq -c '.entries[1]' "$manifest")" ]] || fail "accept-entry changed another manifest entry"
+[[ $second_queue == "$(jq -c '.items[0]' "$queue")" ]] || fail "accept-entry changed another queue row"
+expect_fail "wrong-ID clearance is rejected" python3 "$fixture/tools/apple-silicon/parity-census.py" --root "$fixture" accept-entry --id "$(jq -r '.entries[1].id' "$manifest")" --evidence "$receipt"
+source_path=$(jq -r '.entries[0].sources[0].path' "$manifest")
+printf '\n# stale probe mutation\n' >>"$fixture/$source_path"
+git -C "$fixture" add "$source_path"
 expect_fail "stale source receipt is rejected" "${verify[@]}"
 pass "parity census hostile-case suite"

@@ -56,6 +56,42 @@
       "notes": "ARM launcher/runtime parity receipt is pending; desktop source is not evidence of parity."
     },
     {
+      "id": "application:launcher-disk-usage",
+      "kind": "application",
+      "sources": [
+        {
+          "kind": "launcher",
+          "path": "applications/Disk Usage.desktop"
+        }
+      ],
+      "disposition": "blocked",
+      "evidence": {
+        "kind": "pending",
+        "reference": "platform/apple-silicon/evidence/application__launcher-disk-usage.json"
+      },
+      "owner": "platform-team",
+      "queue_id": "P03-application-launcher-disk-usage",
+      "notes": "ARM launcher/runtime parity receipt is pending; desktop source is not evidence of parity."
+    },
+    {
+      "id": "application:launcher-docker",
+      "kind": "application",
+      "sources": [
+        {
+          "kind": "launcher",
+          "path": "applications/Docker.desktop"
+        }
+      ],
+      "disposition": "blocked",
+      "evidence": {
+        "kind": "pending",
+        "reference": "platform/apple-silicon/evidence/application__launcher-docker.json"
+      },
+      "owner": "platform-team",
+      "queue_id": "P03-application-launcher-docker",
+      "notes": "ARM launcher/runtime parity receipt is pending; desktop source is not evidence of parity."
+    },
+    {
       "id": "application:launcher-google-contacts",
       "kind": "application",
       "sources": [
@@ -3797,14 +3833,6 @@
       "id": "application:package-xdg-terminal-exec",
       "kind": "application",
       "sources": [
-        {
-          "kind": "launcher",
-          "path": "applications/Disk Usage.desktop"
-        },
-        {
-          "kind": "launcher",
-          "path": "applications/Docker.desktop"
-        },
         {
           "kind": "package-list",
           "path": "install/omarchy-base.packages"
