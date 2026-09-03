@@ -20,11 +20,11 @@ platform_architecture=$(/usr/bin/uname -m 2>/dev/null) || {
 }
 case "$platform_architecture" in
   aarch64)
-    if [[ -z ${OMARCHY_PATH:-} || ! -d $OMARCHY_PATH || -L $OMARCHY_PATH || ! -f $OMARCHY_PATH/bin/omarchy-update-platform || -L $OMARCHY_PATH/bin/omarchy-update-platform || ! -x $OMARCHY_PATH/bin/omarchy-update-platform ]]; then
+    if [[ ${OMARCHY_PATH:-} != "/usr/share/omarchy" || ! -d /usr/share/omarchy || -L /usr/share/omarchy || ! -d /usr/share/omarchy/bin || -L /usr/share/omarchy/bin || ! -f /usr/share/omarchy/bin/omarchy-update-platform || -L /usr/share/omarchy/bin/omarchy-update-platform || ! -x /usr/share/omarchy/bin/omarchy-update-platform ]]; then
       printf '%s\n' '{"schema":"omarchy.platform-update/v1","operation":"apply","decision":"DENY","code":"UPDATE_ENTRYPOINT_UNAVAILABLE","process_status":3}'
       exit 3
     fi
-    exec "$OMARCHY_PATH/bin/omarchy-update-platform" apply
+    exec /usr/share/omarchy/bin/omarchy-update-platform apply
     ;;
   x86_64)
     ;;
