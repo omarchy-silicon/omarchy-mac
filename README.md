@@ -29,7 +29,7 @@ curl https://asahi-alarm.org/installer-bootstrap.sh | sh
 ```
 
 Choose `Asahi Alarm Minimal (BTRFS)` and allocate at least 50 GB for Linux.
-The plain `Asahi Alarm Minimal` (ext4) is not covered by the disabled legacy conversion path; use the BTRFS image for the currently documented prerequisite.
+The plain `Asahi Alarm Minimal` (ext4) is not supported by the not-yet-shipped native clean installer; neither image currently has a supported Omarchy clean-install path.
 
 ### 2. Boot into Arch and get online
 
@@ -49,7 +49,7 @@ again.
 
 ### 3. Native clean installer status
 
-The signed Omarchy Silicon native clean installer is not yet shipped. The former guided adapter and its legacy conversion path are deliberately disabled and fail closed; do not run old `omarchy-mac-setup`, boot-layout conversion, or filesystem conversion commands from copied or cached instructions. There is no supported clean-install command to download yet, and this repository makes no clean-install, encryption, compatibility, or release-readiness claim.
+The signed Omarchy Silicon native clean installer is not yet shipped. The former guided adapter and its legacy conversion path are retired, deliberately disabled, and fail closed; do not run old `omarchy-mac-setup`, boot-layout conversion, or filesystem conversion commands from copied or cached instructions. There is no supported clean-install command to download yet, and this repository makes no clean-install, encryption, compatibility, or release-readiness claim.
 
 ---
 
@@ -92,16 +92,11 @@ Setup → Security → SSH.
 
 ### The machine boots to `grub rescue>`
 
-GRUB kept its modules and kernel on the root filesystem, and the legacy conversion path is disabled and quarantined pending P-07; do not attempt to repair a clean install with copied conversion commands. The native signed installer and its recovery contract are not yet shipped.
+GRUB kept its modules and kernel on the root filesystem, and the legacy conversion path is retired and fail-closed; do not attempt to repair a clean install with copied conversion commands. The native signed installer and its recovery contract are not yet shipped.
 
 ### Rolling back after a bad update
 
-`omarchy snapshot restore` works on Apple Silicon. It offers snapper's
-snapshots alongside `@fresh` — the system before Omarchy was installed — and
-`@factory`, the installed system before it was yours, and says what you are
-about to restore before doing anything. `/boot` is the EFI partition and sits
-outside every snapshot; the tool warns when the restored root has no modules
-for the running kernel.
+Legacy snapshot restore is blocked on Apple Silicon while the signed journaled rollback and recovery path is not yet shipped. There is no runnable supported recovery command; do not treat structural snapshot state as rollback authority.
 
 ### Mirrors are slow or failing
 
@@ -129,7 +124,7 @@ Consider supporting the project: [![Buy Me A Coffee](https://img.shields.io/badg
 ## More documentation
 
 - The Omarchy manual — [manual/](manual/)
-- Legacy btrfs reference (not part of clean install; P-07 unresolved) — [docs/btrfs.md](docs/btrfs.md)
+- Legacy btrfs history (not part of clean install; native recovery unresolved) — [docs/btrfs.md](docs/btrfs.md)
 - Upgrading from 3.x to Quattro — [docs/upgrade-to-quattro.md](docs/upgrade-to-quattro.md)
 
 ---

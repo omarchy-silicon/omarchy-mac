@@ -6305,6 +6305,17 @@
       "status": "planned"
     },
     {
+      "id": "P03-command-omarchy-system-boot-to-esp",
+      "owner": "platform-team",
+      "dependency": "ARM package/runtime behavior and a reviewed receipt",
+      "next_action": "Run the exact ARM probe for command:omarchy-system-boot-to-esp and save its receipt.",
+      "acceptance": {
+        "command": "python3 tools/apple-silicon/parity-census.py accept-entry --id command:omarchy-system-boot-to-esp --evidence platform/apple-silicon/evidence/command__omarchy-system-boot-to-esp.json",
+        "evidence": "platform/apple-silicon/evidence/command__omarchy-system-boot-to-esp.json"
+      },
+      "status": "planned"
+    },
+    {
       "id": "P03-command-omarchy-system-btrfs-migrate",
       "owner": "platform-team",
       "dependency": "ARM package/runtime behavior and a reviewed receipt",

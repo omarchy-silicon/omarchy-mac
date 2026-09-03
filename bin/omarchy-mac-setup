@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Legacy guided Mac setup is disabled pending P-07 and cannot mutate this system.
+# omarchy:summary=Retired legacy guided Mac setup command
 # omarchy:group=setup
 # omarchy:hidden=true
 # omarchy:requires-sudo=true
@@ -8,6 +8,6 @@
 
 set -euo pipefail
 
-printf '%s\n' 'The legacy guided Mac setup is disabled and quarantined from clean install pending P-07.' >&2
+printf '%s\n' 'The legacy guided Mac setup is retired and disabled.' >&2
 printf '%s\n' 'The signed Omarchy Silicon native clean installer is not yet shipped.' >&2
-exit 3
+return 3 2>/dev/null || exit 3

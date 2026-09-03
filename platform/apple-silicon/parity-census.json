@@ -10332,6 +10332,24 @@
       "notes": "ARM parity receipt is pending; source presence is not evidence of parity."
     },
     {
+      "id": "command:omarchy-system-boot-to-esp",
+      "kind": "command",
+      "sources": [
+        {
+          "kind": "command",
+          "path": "bin/omarchy-system-boot-to-esp"
+        }
+      ],
+      "disposition": "blocked",
+      "evidence": {
+        "kind": "pending",
+        "reference": "platform/apple-silicon/evidence/command__omarchy-system-boot-to-esp.json"
+      },
+      "owner": "platform-team",
+      "queue_id": "P03-command-omarchy-system-boot-to-esp",
+      "notes": "ARM parity receipt is pending; source presence is not evidence of parity."
+    },
+    {
       "id": "command:omarchy-system-btrfs-migrate",
       "kind": "command",
       "sources": [
