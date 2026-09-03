@@ -1,10 +1,7 @@
 if [[ $(uname -m) == "aarch64" ]]; then
-  apple_compatible="${OMARCHY_APPLE_COMPATIBLE:-/proc/device-tree/compatible}"
-  if [[ -f $apple_compatible ]] && grep -Faiq "apple," "$apple_compatible"; then
-    # Every Apple-specific mutating leaf follows this fail-closed gate.  The
-    # gate is intentionally skipped for non-Apple and non-aarch64 machines.
-    OMARCHY_APPLE_COMPATIBLE="$apple_compatible" run_logged "$OMARCHY_INSTALL/hardware/apple/platform-admission.sh" || return $?
-  fi
+  # Every aarch64 install must pass identity admission before any leaf runs.
+  # Missing, malformed, or unknown identity therefore fails closed.
+  run_logged "$OMARCHY_INSTALL/hardware/apple/platform-admission.sh" || return $?
 fi
 
 run_logged "$OMARCHY_INSTALL/hardware/asus-rog.sh"

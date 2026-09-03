@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 from typing import Any, NoReturn
@@ -37,7 +38,7 @@ LINUX_DTS_COMMIT = "b6935375d5360c166efcf2e755513caad2be6b01"
 EXPECTED_DATASET_DIGEST = "sha256:b0a4e31840d8457de4f8af27ed0b42ef5377caff0a6d89e80af7ae5f4e38e246"
 EXPECTED_RECORD_DIGEST = "sha256:dbf8112dfd4af7d1316735fca647fcfe65d5497abeef0f0a16c4860768b537dd"
 EXPECTED_PROJECTION_DIGEST = "sha256:26d6d813233d1e8476fd35b48a34435a4f15afaba9f2c0f4721d7137c7fe1181"
-EXPECTED_LOCK_DIGEST = "sha256:d4ca416f1d2282b6aadac79a6993467c292ea88347add36243896f06f16bfdbf"
+EXPECTED_LOCK_DIGEST = "sha256:2c076720801d49af6d45f1829b7b3a314c212edfd1da1bec6d0ce022951929d1"
 
 
 class AdmissionError(Exception):
@@ -163,7 +164,7 @@ def validate_lock(lock: Any, projection_digest: str) -> dict[str, Any]:
         fail("LOCK_MISMATCH", "$.lock.record_digest", "record digest is outside the closed source boundary")
     source = exact_object(lock["source"], "$.lock.source", {"repository", "commit", "manifest_path", "manifest_digest", "projection_pointer", "linux_dts_commit"})
     expected_source = {
-        "repository": "Omarchy-Silicon/lanes/wave2-integration",
+        "repository": "https://github.com/omarchy-silicon/omarchy-apple-platform",
         "commit": SOURCE_COMMIT,
         "manifest_path": "data/intake/manifest.json",
         "manifest_digest": SOURCE_MANIFEST_DIGEST,
@@ -221,13 +222,54 @@ def validate_projection(projection: Any) -> tuple[dict[str, Any], str]:
     return projection, computed
 
 
-def compatible_tokens(path: Path) -> list[str]:
+def safe_read(path: Path) -> bytes:
+    """Read one regular file without following any path-component symlink."""
+    if not path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts[1:]):
+        fail("COMPATIBLE_PATH_INVALID", str(path), "compatible path must be absolute and traversal-free")
+    flags = os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+    directory_flags = flags | getattr(os, "O_DIRECTORY", 0)
+    descriptor = -1
     try:
-        data = path.read_bytes()
-    except OSError:
+        descriptor = os.open("/", directory_flags)
+        components = path.parts[1:]
+        if not components:
+            fail("COMPATIBLE_PATH_INVALID", str(path), "compatible path names a directory")
+        for component in components[:-1]:
+            next_descriptor = os.open(component, directory_flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = next_descriptor
+        # O_NONBLOCK prevents a caller-created FIFO from blocking before fstat.
+        leaf = os.open(components[-1], flags | getattr(os, "O_NONBLOCK", 0), dir_fd=descriptor)
+        os.close(descriptor)
+        descriptor = leaf
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            fail("COMPATIBLE_NOT_REGULAR", str(path), "compatible path is not a regular file")
+        if info.st_size > MAX_JSON_BYTES:
+            fail("COMPATIBLE_SIZE_LIMIT", str(path), "compatible file exceeds the bounded size limit")
+        data = bytearray()
+        while True:
+            chunk = os.read(descriptor, MAX_JSON_BYTES + 1 - len(data))
+            if not chunk:
+                break
+            data.extend(chunk)
+            if len(data) > MAX_JSON_BYTES:
+                fail("COMPATIBLE_SIZE_LIMIT", str(path), "compatible file exceeds the bounded size limit")
+        return bytes(data)
+    except AdmissionError:
+        raise
+    except (OSError, ValueError):
         fail("COMPATIBLE_READ_FAILED", str(path), "compatible file could not be read")
-    if len(data) > MAX_JSON_BYTES:
-        fail("COMPATIBLE_SIZE_LIMIT", str(path), "compatible file exceeds the bounded size limit")
+    finally:
+        if descriptor >= 0:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def compatible_tokens(path: Path) -> list[str]:
+    data = safe_read(path)
     try:
         tokens = data.decode("utf-8").split("\x00")
     except UnicodeDecodeError:
@@ -270,15 +312,17 @@ def main(argv: list[str]) -> int:
         return result({"command": COMMAND, "decision": "DENY", "error": {"code": "USAGE", "path": "$", "detail": "unknown argument"}}, 64)
 
     root = Path(os.environ.get("OMARCHY_PATH", "/usr/share/omarchy"))
-    compatible_path = Path(compatible_arg if compatible_arg is not None else os.environ.get("OMARCHY_APPLE_COMPATIBLE", "/proc/device-tree/compatible"))
+    compatible_path = Path(compatible_arg if compatible_arg is not None else "/sys/firmware/devicetree/base/compatible")
     projection_path = root / "platform/apple-silicon/board-registry-projection.json"
     lock_path = root / "platform/apple-silicon/board-registry-projection.lock.json"
     try:
+        tokens = compatible_tokens(compatible_path)
+        if not any(token.startswith("apple,") for token in tokens):
+            return result({"command": COMMAND, "compatible": tokens, "decision": "NOT_APPLICABLE"}, 0)
         projection = read_json(projection_path)
         projection, projection_digest = validate_projection(projection)
         lock = read_json(lock_path)
         validate_lock(lock, projection_digest)
-        tokens = compatible_tokens(compatible_path)
         linux = projection["payload"]["identity_match"]["linux_compatible"]
         if linux not in tokens:
             fail("COMPATIBLE_MISMATCH", "$.compatible", "exact Linux compatible is absent")

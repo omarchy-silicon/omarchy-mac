@@ -12,19 +12,21 @@ pass "Q-00 projection and closed lock are shipped"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
+test_root="$(realpath "$test_tmp")"
 fixture="$test_tmp/omarchy"
 mkdir -p "$fixture/bin" "$fixture/platform/apple-silicon" "$fixture/install/hardware/apple"
 cp "$command" "$fixture/bin/omarchy-hw-apple-platform-admission"
 cp "$projection" "$fixture/platform/apple-silicon/board-registry-projection.json"
 cp "$lock" "$fixture/platform/apple-silicon/board-registry-projection.lock.json"
 chmod +x "$fixture/bin/omarchy-hw-apple-platform-admission"
-compatible="$test_tmp/compatible"
-printf 'apple,arm-platform\0apple,j313\0apple,t8103\0' >"$compatible"
+compatible_input="$test_tmp/compatible"
+printf 'apple,arm-platform\0apple,j313\0apple,t8103\0' >"$compatible_input"
+compatible="$(realpath "$compatible_input")"
 
 run_admission() {
   local status=0
-  output=$(OMARCHY_PATH="$fixture" OMARCHY_APPLE_COMPATIBLE="$compatible" \
-    "$fixture/bin/omarchy-hw-apple-platform-admission" 2>&1) || status=$?
+  output=$(OMARCHY_PATH="$fixture" \
+    "$fixture/bin/omarchy-hw-apple-platform-admission" --compatible "$compatible" 2>&1) || status=$?
   printf '%s\n' "$status" "$output"
 }
 
@@ -41,8 +43,8 @@ assert_error() {
   local label="$1" expected="$2"
   shift 2
   local status=0 result
-  result=$(OMARCHY_PATH="$fixture" OMARCHY_APPLE_COMPATIBLE="$compatible" \
-    "$fixture/bin/omarchy-hw-apple-platform-admission" 2>&1) || status=$?
+  result=$(OMARCHY_PATH="$fixture" \
+    "$fixture/bin/omarchy-hw-apple-platform-admission" --compatible "$compatible" 2>&1) || status=$?
   (( status != 0 )) || fail "$label" "checker unexpectedly passed"
   [[ $(jq -r '.error.code' <<<"$result") == "$expected" ]] || fail "$label" "expected $expected, got $result"
   [[ $(jq -c '.' <<<"$result" | wc -l | tr -d ' ') == 1 ]] || fail "$label" "more than one JSON result"
@@ -112,24 +114,96 @@ printf 'apple,arm-platform\0apple,j313\0' >"$compatible"
 [[ $(sha256sum "$fixture/platform/apple-silicon/board-registry-projection.lock.json") == "$baseline_lock" ]] || fail "admission does not mutate lock"
 pass "hostile inputs fail without artifact mutation"
 
-# Exercise the installer seam with a stubbed uname and run_logged.  The denied
-# gate must prevent the first Apple mutating leaf from being reached.
+printf 'raspberrypi,4-model-b\0' >"$compatible"
+mapfile -t non_apple < <(run_admission)
+[[ ${non_apple[0]} == 0 ]] || fail "valid non-Apple aarch64 identity is not blocked" "status ${non_apple[0]} output ${non_apple[*]:1}"
+[[ $(jq -r '.decision' <<<"${non_apple[1]}") == NOT_APPLICABLE ]] || fail "valid non-Apple identity returns NOT_APPLICABLE"
+pass "valid non-Apple identity returns NOT_APPLICABLE"
+
+printf '%s\0' 'apple,arm-platform' >"$compatible"
+assert_error "missing board selector is rejected" COMPATIBLE_MISMATCH
+mkdir "$test_tmp/compatible-directory"
+compatible_directory="$(realpath "$test_tmp/compatible-directory")"
+assert_error_with_path() {
+  local label="$1" expected="$2" path="$3" status=0 result
+  result=$(OMARCHY_PATH="$fixture" "$fixture/bin/omarchy-hw-apple-platform-admission" --compatible "$path" 2>&1) || status=$?
+  (( status != 0 )) || fail "$label" "checker unexpectedly passed"
+  [[ $(jq -r '.error.code' <<<"$result") == "$expected" ]] || fail "$label" "expected $expected, got $result"
+  pass "$label"
+}
+assert_error_with_path "compatible directory is rejected" COMPATIBLE_NOT_REGULAR "$compatible_directory"
+mkfifo "$test_tmp/compatible-fifo"
+fifo_path="$(realpath "$test_tmp/compatible-fifo")"
+if timeout 2 "$fixture/bin/omarchy-hw-apple-platform-admission" --compatible "$fifo_path" >/dev/null 2>&1; then
+  fail "compatible FIFO is rejected without blocking"
+fi
+pass "compatible FIFO is rejected without blocking"
+printf 'apple,j313\0' >"$test_root/compatible-target"
+ln -s "$test_root/compatible-target" "$test_root/compatible-leaf-link"
+assert_error_with_path "compatible leaf symlink is rejected" COMPATIBLE_READ_FAILED "$test_root/compatible-leaf-link"
+mkdir "$test_root/compatible-parent"
+ln -s "$test_root/compatible-parent" "$test_root/compatible-parent-link"
+assert_error_with_path "compatible parent symlink is rejected" COMPATIBLE_READ_FAILED "$test_root/compatible-parent-link/compatible"
+
+# Exercise the installer seam with a stubbed uname, run_logged, and a command
+# reached through OMARCHY_PATH.  No compatible environment override is used.
 mkdir -p "$test_tmp/stub-bin"
 cat >"$test_tmp/stub-bin/uname" <<'SH'
 #!/bin/bash
-[[ ${1:-} == "-m" ]] && printf '%s\n' "aarch64" || /usr/bin/uname "$@"
+[[ ${1:-} == "-m" ]] && printf '%s\n' "${TEST_ARCH:-aarch64}" || /usr/bin/uname "$@"
 SH
 chmod +x "$test_tmp/stub-bin/uname"
+gate_root="$test_tmp/gate-root"
+mkdir -p "$gate_root/bin"
+cat >"$gate_root/bin/omarchy-hw-apple-platform-admission" <<'SH'
+#!/bin/bash
+printf 'admission\n' >>"$ADMISSION_CALLS"
+exit "${ADMISSION_STATUS:-3}"
+SH
+chmod +x "$gate_root/bin/omarchy-hw-apple-platform-admission"
 calls="$test_tmp/install-calls"
-if PATH="$test_tmp/stub-bin:$PATH" OMARCHY_PATH="$fixture" OMARCHY_INSTALL="$ROOT/install" OMARCHY_APPLE_COMPATIBLE="$compatible" \
-  CALLS="$calls" bash -eE -o pipefail -c '
+if PATH="$test_tmp/stub-bin:$PATH" TEST_ARCH=aarch64 OMARCHY_PATH="$gate_root" OMARCHY_INSTALL="$ROOT/install" \
+  CALLS="$calls" ADMISSION_CALLS="$test_tmp/admission-calls" ADMISSION_STATUS=3 bash -eE -o pipefail -c '
     run_logged() { printf "%s\n" "$1" >>"$CALLS"; if [[ $1 == *"platform-admission.sh" ]]; then source "$1"; fi; }
     source "$1"
   ' bash "$ROOT/install/hardware/all.sh"; then
   fail "denied Apple Silicon gate aborts hardware setup"
 fi
 grep -q 'hardware/apple/platform-admission.sh' "$calls" || fail "Apple gate is wired into hardware setup"
+[[ $(wc -l <"$test_tmp/admission-calls" | tr -d ' ') == 1 ]] || fail "denied gate invokes admission command once"
+! grep -q 'hardware/vulkan.sh' "$calls" || fail "Apple admission precedes generic Vulkan mutation"
 ! grep -q 'hardware/apple/fix-spi-keyboard.sh' "$calls" || fail "Apple mutating leaf is behind admission gate"
-pass "denied Apple Silicon gate aborts before Apple mutation"
+pass "denied Apple Silicon gate aborts before every mutation"
+
+: >"$calls"
+: >"$test_tmp/admission-calls"
+if PATH="$test_tmp/stub-bin:$PATH" TEST_ARCH=aarch64 OMARCHY_PATH="$gate_root" OMARCHY_INSTALL="$ROOT/install" \
+  CALLS="$calls" ADMISSION_CALLS="$test_tmp/admission-calls" ADMISSION_STATUS=0 bash -eE -o pipefail -c '
+    run_logged() { printf "%s\n" "$1" >>"$CALLS"; if [[ $1 == *"platform-admission.sh" ]]; then source "$1"; fi; }
+    source "$1"
+  ' bash "$ROOT/install/hardware/all.sh"; then
+  :
+else
+  fail "passing aarch64 admission permits subsequent setup"
+fi
+gate_line=$(grep -n 'hardware/apple/platform-admission.sh' "$calls" | cut -d: -f1)
+vulkan_line=$(grep -n 'hardware/vulkan.sh' "$calls" | cut -d: -f1)
+apple_line=$(grep -n 'hardware/apple/fix-spi-keyboard.sh' "$calls" | cut -d: -f1)
+(( gate_line < vulkan_line && gate_line < apple_line )) || fail "admission precedes generic and Apple mutation"
+pass "aarch64 admission runs before generic Vulkan and Apple leaves"
+
+: >"$calls"
+if PATH="$test_tmp/stub-bin:$PATH" TEST_ARCH=x86_64 OMARCHY_PATH="$gate_root" OMARCHY_INSTALL="$ROOT/install" \
+  CALLS="$calls" ADMISSION_CALLS="$test_tmp/admission-calls" ADMISSION_STATUS=99 bash -eE -o pipefail -c '
+    run_logged() { printf "%s\n" "$1" >>"$CALLS"; if [[ $1 == *"platform-admission.sh" ]]; then source "$1"; fi; }
+    source "$1"
+  ' bash "$ROOT/install/hardware/all.sh"; then
+  :
+else
+  fail "x86 hardware setup remains unchanged"
+fi
+! grep -q 'platform-admission.sh' "$calls" || fail "x86 hardware setup does not invoke admission"
+grep -q 'hardware/vulkan.sh' "$calls" || fail "x86 hardware setup retains generic leaves"
+pass "x86 hardware setup remains unchanged"
 
 pass "Apple platform admission hostile-case suite"
