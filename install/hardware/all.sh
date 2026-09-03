@@ -1,3 +1,9 @@
+if [[ $(uname -m) == "aarch64" ]]; then
+  # Every aarch64 install must pass identity admission before any leaf runs.
+  # Missing, malformed, or unknown identity therefore fails closed.
+  run_logged "$OMARCHY_INSTALL/hardware/apple/platform-admission.sh" || return $?
+fi
+
 run_logged "$OMARCHY_INSTALL/hardware/asus-rog.sh"
 run_logged "$OMARCHY_INSTALL/hardware/framework16.sh"
 run_logged "$OMARCHY_INSTALL/hardware/dell-xps-touchpad-haptics.sh"

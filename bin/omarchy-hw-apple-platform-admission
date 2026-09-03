@@ -1,0 +1,370 @@
+#!/usr/bin/env python3
+
+# omarchy:group=hw
+# omarchy:summary=Validate the closed Apple Silicon platform admission gate.
+# omarchy:args=[--compatible <path>]
+
+"""Offline, fail-closed admission check for the shipped Q-00 projection.
+
+This command intentionally has no dependency on the Q-00 Python package.  The
+projection and lock are small, immutable release inputs and this checker is
+stdlib-only so it can run before any platform package or hardware setup leaf.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import stat
+import sys
+from pathlib import Path
+from typing import Any, NoReturn
+
+
+COMMAND = "omarchy-hw-apple-platform-admission"
+MAX_JSON_BYTES = 64 * 1024
+MAX_DEPTH = 16
+DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+SELECTOR_RE = re.compile(r"^j[0-9]+$")
+
+# These values are the immutable Q-00 source boundary.  The lock carries them
+# for human diagnosis; keeping the boundary here also means replacing both
+# shipped files cannot silently turn an unreviewed artifact into an allowlist.
+SOURCE_COMMIT = "f365f3e1004afda5ace64d7a59b0f28042785998"
+SOURCE_MANIFEST_DIGEST = "sha256:4ecf20ad2d45796ef7ed1b2f3582e42dc57bf38c07a172ee42716014ad940245"
+LINUX_DTS_COMMIT = "b6935375d5360c166efcf2e755513caad2be6b01"
+EXPECTED_DATASET_DIGEST = "sha256:b0a4e31840d8457de4f8af27ed0b42ef5377caff0a6d89e80af7ae5f4e38e246"
+EXPECTED_RECORD_DIGEST = "sha256:dbf8112dfd4af7d1316735fca647fcfe65d5497abeef0f0a16c4860768b537dd"
+EXPECTED_PROJECTION_DIGEST = "sha256:26d6d813233d1e8476fd35b48a34435a4f15afaba9f2c0f4721d7137c7fe1181"
+EXPECTED_LOCK_DIGEST = "sha256:2c076720801d49af6d45f1829b7b3a314c212edfd1da1bec6d0ce022951929d1"
+
+
+class AdmissionError(Exception):
+    def __init__(self, code: str, path: str, detail: str) -> None:
+        super().__init__(detail)
+        self.code = code
+        self.path = path
+        self.detail = detail
+
+
+def fail(code: str, path: str, detail: str) -> NoReturn:
+    raise AdmissionError(code, path, detail)
+
+
+def canonical_bytes(value: Any) -> bytes:
+    """Canonical JSON for this ASCII-only, integer-free projection domain."""
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    except (TypeError, ValueError, UnicodeEncodeError) as error:
+        fail("CANONICALIZATION_FAILED", "$", "value cannot be canonicalized")
+        raise AssertionError from error
+
+
+def digest_bytes(value: bytes) -> str:
+    return "sha256:" + hashlib.sha256(value).hexdigest()
+
+
+def check_tree(value: Any, path: str = "$", depth: int = 0) -> None:
+    if depth > MAX_DEPTH:
+        fail("DEPTH_LIMIT", path, "JSON nesting exceeds the bounded limit")
+    if isinstance(value, float):
+        fail("FLOAT_FORBIDDEN", path, "floating point values are not accepted")
+    if isinstance(value, (dict, list)):
+        children = value.items() if isinstance(value, dict) else enumerate(value)
+        for index, child in children:
+            child_path = f"{path}.{index}"
+            check_tree(child, child_path, depth + 1)
+
+
+def scan_depth(text: str, path: str) -> None:
+    """Bound structural nesting before json.loads can recurse over it."""
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > MAX_DEPTH:
+                fail("DEPTH_LIMIT", path, "JSON nesting exceeds the bounded limit")
+        elif character in "]}":
+            depth -= 1
+
+
+def parse_json(data: bytes, path: str) -> Any:
+    if len(data) > MAX_JSON_BYTES:
+        fail("SIZE_LIMIT", path, "JSON input exceeds the bounded size limit")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        fail("MALFORMED_JSON", path, "input is not UTF-8 JSON")
+    scan_depth(text, path)
+
+    def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, item in items:
+            if key in result:
+                fail("DUPLICATE_KEY", path, "duplicate object key")
+            result[key] = item
+        return result
+
+    try:
+        decoder = json.JSONDecoder(object_pairs_hook=pairs, parse_constant=lambda value: fail("NONFINITE_NUMBER", path, "non-finite number is forbidden"))
+        value, end = decoder.raw_decode(text)
+        if text[end:].strip():
+            fail("TRAILING_DATA", path, "input contains trailing data")
+    except AdmissionError:
+        raise
+    except (json.JSONDecodeError, TypeError, ValueError):
+        fail("MALFORMED_JSON", path, "input is not one complete JSON value")
+    check_tree(value, path)
+    return value
+
+
+def exact_object(value: Any, path: str, fields: set[str]) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        fail("TYPE_MISMATCH", path, "expected an object")
+    actual = set(value)
+    unknown = sorted(actual - fields)
+    missing = sorted(fields - actual)
+    if unknown:
+        fail("UNKNOWN_FIELD", f"{path}.{unknown[0]}", "unknown field")
+    if missing:
+        fail("MISSING_FIELD", f"{path}.{missing[0]}", "required field is missing")
+    return value
+
+
+def string(value: Any, path: str, pattern: re.Pattern[str] | None = None) -> str:
+    if type(value) is not str or not value:
+        fail("TYPE_MISMATCH", path, "expected a non-empty string")
+    if pattern is not None and pattern.fullmatch(value) is None:
+        fail("INVALID_VALUE", path, "string has an invalid format")
+    return value
+
+
+def digest(value: Any, path: str) -> str:
+    value = string(value, path, DIGEST_RE)
+    hexpart = value.split(":", 1)[1]
+    if len(set(hexpart)) == 1:
+        fail("SENTINEL_DIGEST", path, "sentinel digest is not accepted")
+    return value
+
+
+def read_json(path: Path) -> Any:
+    try:
+        if path.is_symlink() or not path.is_file():
+            fail("ARTIFACT_MISSING", str(path), "artifact is not a regular file")
+        return parse_json(path.read_bytes(), str(path))
+    except OSError:
+        fail("ARTIFACT_READ_FAILED", str(path), "artifact could not be read")
+
+
+def validate_lock(lock: Any, projection_digest: str) -> dict[str, Any]:
+    fields = {"schema", "projection_path", "projection_digest", "dataset_digest", "record_id", "record_revision", "record_digest", "source"}
+    lock = exact_object(lock, "$.lock", fields)
+    if lock["schema"] != "omarchy.apple-silicon.admission-lock/v1":
+        fail("UNSUPPORTED_SCHEMA", "$.lock.schema", "unsupported admission lock schema")
+    if lock["projection_path"] != "platform/apple-silicon/board-registry-projection.json":
+        fail("LOCK_MISMATCH", "$.lock.projection_path", "lock points at a different projection")
+    if digest(lock["projection_digest"], "$.lock.projection_digest") != projection_digest:
+        fail("DIGEST_MISMATCH", "$.lock.projection_digest", "lock does not bind projection canonical bytes")
+    if lock["projection_digest"] != EXPECTED_PROJECTION_DIGEST:
+        fail("LOCK_MISMATCH", "$.lock.projection_digest", "projection digest is outside the closed source boundary")
+    if digest(lock["dataset_digest"], "$.lock.dataset_digest") != EXPECTED_DATASET_DIGEST:
+        fail("LOCK_MISMATCH", "$.lock.dataset_digest", "dataset digest is outside the closed source boundary")
+    string(lock["record_id"], "$.lock.record_id")
+    string(lock["record_revision"], "$.lock.record_revision", re.compile(r"^r[0-9]+$"))
+    if digest(lock["record_digest"], "$.lock.record_digest") != EXPECTED_RECORD_DIGEST:
+        fail("LOCK_MISMATCH", "$.lock.record_digest", "record digest is outside the closed source boundary")
+    source = exact_object(lock["source"], "$.lock.source", {"repository", "commit", "manifest_path", "manifest_digest", "projection_pointer", "linux_dts_commit"})
+    expected_source = {
+        "repository": "https://github.com/omarchy-silicon/omarchy-apple-platform",
+        "commit": SOURCE_COMMIT,
+        "manifest_path": "data/intake/manifest.json",
+        "manifest_digest": SOURCE_MANIFEST_DIGEST,
+        "projection_pointer": "data/intake/manifest.json#/projections/0",
+        "linux_dts_commit": LINUX_DTS_COMMIT,
+    }
+    for key, expected in expected_source.items():
+        if key == "manifest_digest":
+            digest(source[key], f"$.lock.source.{key}")
+        else:
+            string(source[key], f"$.lock.source.{key}")
+        if source[key] != expected:
+            fail("PROVENANCE_MISMATCH", f"$.lock.source.{key}", "source provenance is outside the closed boundary")
+    return lock
+
+
+def validate_projection(projection: Any) -> tuple[dict[str, Any], str]:
+    outer_fields = {"projection_id", "projection_type", "dataset_digest", "record_id", "record_revision", "record_digest", "payload"}
+    projection = exact_object(projection, "$.projection", outer_fields)
+    projection_id = string(projection["projection_id"], "$.projection.projection_id")
+    if projection["projection_type"] != "board-registry/v1":
+        fail("UNSUPPORTED_SCHEMA", "$.projection.projection_type", "only board-registry/v1 is accepted")
+    dataset = digest(projection["dataset_digest"], "$.projection.dataset_digest")
+    record_id = string(projection["record_id"], "$.projection.record_id")
+    revision = string(projection["record_revision"], "$.projection.record_revision", re.compile(r"^r[0-9]+$"))
+    record = digest(projection["record_digest"], "$.projection.record_digest")
+    payload = exact_object(projection["payload"], "$.projection.payload", {"schema", "dataset_digest", "record_digest", "record_revision", "board_id", "identity_match", "soc_id", "lifecycle", "admissible"})
+    if payload["schema"] != "board-registry/v1":
+        fail("UNSUPPORTED_SCHEMA", "$.projection.payload.schema", "only board-registry/v1 is accepted")
+    if digest(payload["dataset_digest"], "$.projection.payload.dataset_digest") != dataset:
+        fail("BINDING_MISMATCH", "$.projection.payload.dataset_digest", "payload dataset binding differs")
+    if digest(payload["record_digest"], "$.projection.payload.record_digest") != record:
+        fail("BINDING_MISMATCH", "$.projection.payload.record_digest", "payload record binding differs")
+    if payload["record_revision"] != revision:
+        fail("BINDING_MISMATCH", "$.projection.payload.record_revision", "payload revision binding differs")
+    board_id = string(payload["board_id"], "$.projection.payload.board_id", re.compile(r"^apple:j[0-9]+$"))
+    selector = board_id.split(":", 1)[1]
+    if SELECTOR_RE.fullmatch(selector) is None:
+        fail("INVALID_SELECTOR", "$.projection.payload.board_id", "board selector is not exact")
+    if projection_id != board_id or record_id != board_id:
+        fail("AMBIGUOUS_RECORD", "$.projection", "projection and record IDs do not identify one board")
+    identity = exact_object(payload["identity_match"], "$.projection.payload.identity_match", {"macos_compatible", "linux_compatible"})
+    string(identity["macos_compatible"], "$.projection.payload.identity_match.macos_compatible")
+    linux = string(identity["linux_compatible"], "$.projection.payload.identity_match.linux_compatible", re.compile(r"^apple,j[0-9]+$"))
+    if linux != "apple," + selector:
+        fail("AMBIGUOUS_RECORD", "$.projection.payload.identity_match.linux_compatible", "linux compatible is not bound to board selector")
+    string(payload["soc_id"], "$.projection.payload.soc_id", re.compile(r"^apple-soc:[a-z][a-z0-9-]+$"))
+    if payload["lifecycle"] not in {"shipping", "announced", "discontinued", "unknown"}:
+        fail("INVALID_VALUE", "$.projection.payload.lifecycle", "unsupported lifecycle")
+    if type(payload["admissible"]) is not bool:
+        fail("TYPE_MISMATCH", "$.projection.payload.admissible", "admissible must be a boolean")
+    if dataset != EXPECTED_DATASET_DIGEST or record != EXPECTED_RECORD_DIGEST or board_id != "apple:j313" or revision != "r1":
+        fail("PROJECTION_MISMATCH", "$.projection", "projection is outside the closed Q-00 boundary")
+    computed = digest_bytes(canonical_bytes(projection))
+    return projection, computed
+
+
+def safe_read(path: Path) -> bytes:
+    """Read one regular file without following any path-component symlink."""
+    if not path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts[1:]):
+        fail("COMPATIBLE_PATH_INVALID", str(path), "compatible path must be absolute and traversal-free")
+    flags = os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+    directory_flags = flags | getattr(os, "O_DIRECTORY", 0)
+    descriptor = -1
+    try:
+        descriptor = os.open("/", directory_flags)
+        components = path.parts[1:]
+        if not components:
+            fail("COMPATIBLE_PATH_INVALID", str(path), "compatible path names a directory")
+        for component in components[:-1]:
+            next_descriptor = os.open(component, directory_flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = next_descriptor
+        # O_NONBLOCK prevents a caller-created FIFO from blocking before fstat.
+        leaf = os.open(components[-1], flags | getattr(os, "O_NONBLOCK", 0), dir_fd=descriptor)
+        os.close(descriptor)
+        descriptor = leaf
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            fail("COMPATIBLE_NOT_REGULAR", str(path), "compatible path is not a regular file")
+        if info.st_size > MAX_JSON_BYTES:
+            fail("COMPATIBLE_SIZE_LIMIT", str(path), "compatible file exceeds the bounded size limit")
+        data = bytearray()
+        while True:
+            chunk = os.read(descriptor, MAX_JSON_BYTES + 1 - len(data))
+            if not chunk:
+                break
+            data.extend(chunk)
+            if len(data) > MAX_JSON_BYTES:
+                fail("COMPATIBLE_SIZE_LIMIT", str(path), "compatible file exceeds the bounded size limit")
+        return bytes(data)
+    except AdmissionError:
+        raise
+    except (OSError, ValueError):
+        fail("COMPATIBLE_READ_FAILED", str(path), "compatible file could not be read")
+    finally:
+        if descriptor >= 0:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def compatible_tokens(path: Path) -> list[str]:
+    data = safe_read(path)
+    try:
+        tokens = data.decode("utf-8").split("\x00")
+    except UnicodeDecodeError:
+        fail("COMPATIBLE_MALFORMED", str(path), "compatible file is not UTF-8")
+    while tokens and tokens[-1] == "":
+        tokens.pop()
+    if not tokens or any(not token for token in tokens):
+        fail("COMPATIBLE_MALFORMED", str(path), "compatible file contains an empty record")
+    if len(tokens) != len(set(tokens)):
+        fail("COMPATIBLE_AMBIGUOUS", str(path), "compatible records are duplicated")
+    return tokens
+
+
+def result(payload: dict[str, Any], code: int) -> int:
+    sys.stdout.write(json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n")
+    return code
+
+
+def main(argv: list[str]) -> int:
+    compatible_arg: str | None = None
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg in {"-h", "--help"}:
+            return result({"command": COMMAND, "usage": "--compatible <path>"}, 0)
+        if arg in {"--compatible", "--compatible-file"}:
+            if index + 1 >= len(argv):
+                return result({"command": COMMAND, "decision": "DENY", "error": {"code": "USAGE", "path": "$", "detail": "compatible path is required"}}, 64)
+            if compatible_arg is not None:
+                return result({"command": COMMAND, "decision": "DENY", "error": {"code": "USAGE", "path": "$", "detail": "compatible path was supplied more than once"}}, 64)
+            compatible_arg = argv[index + 1]
+            index += 2
+            continue
+        if arg.startswith("--compatible="):
+            if compatible_arg is not None:
+                return result({"command": COMMAND, "decision": "DENY", "error": {"code": "USAGE", "path": "$", "detail": "compatible path was supplied more than once"}}, 64)
+            compatible_arg = arg.split("=", 1)[1]
+            index += 1
+            continue
+        return result({"command": COMMAND, "decision": "DENY", "error": {"code": "USAGE", "path": "$", "detail": "unknown argument"}}, 64)
+
+    root = Path(os.environ.get("OMARCHY_PATH", "/usr/share/omarchy"))
+    compatible_path = Path(compatible_arg if compatible_arg is not None else "/sys/firmware/devicetree/base/compatible")
+    projection_path = root / "platform/apple-silicon/board-registry-projection.json"
+    lock_path = root / "platform/apple-silicon/board-registry-projection.lock.json"
+    try:
+        tokens = compatible_tokens(compatible_path)
+        if not any(token.startswith("apple,") for token in tokens):
+            return result({"command": COMMAND, "compatible": tokens, "decision": "NOT_APPLICABLE"}, 0)
+        projection = read_json(projection_path)
+        projection, projection_digest = validate_projection(projection)
+        lock = read_json(lock_path)
+        validate_lock(lock, projection_digest)
+        linux = projection["payload"]["identity_match"]["linux_compatible"]
+        if linux not in tokens:
+            fail("COMPATIBLE_MISMATCH", "$.compatible", "exact Linux compatible is absent")
+        selector = projection["payload"]["board_id"].split(":", 1)[1]
+        exact_matches = [token for token in tokens if token == "apple," + selector]
+        if len(exact_matches) != 1:
+            fail("COMPATIBLE_AMBIGUOUS", "$.compatible", "board selector does not bind to exactly one compatible record")
+        lock_digest = digest_bytes(canonical_bytes(lock))
+        if lock_digest != EXPECTED_LOCK_DIGEST:
+            fail("LOCK_MISMATCH", "$.lock", "lock canonical bytes are outside the closed source boundary")
+        if projection["payload"]["admissible"] is not False:
+            fail("ADMISSIBILITY_INVALID", "$.projection.payload.admissible", "admissibility must be explicitly false in this release")
+        return result({"board_id": projection["payload"]["board_id"], "command": COMMAND, "decision": "DENY", "lock_digest": lock_digest, "projection_digest": projection_digest, "reason": "NOT_ADMISSIBLE", "selector": selector}, 3)
+    except AdmissionError as error:
+        return result({"command": COMMAND, "decision": "DENY", "error": {"code": error.code, "detail": error.detail, "path": error.path}}, 2)
+    except Exception:
+        return result({"command": COMMAND, "decision": "DENY", "error": {"code": "INTERNAL_ERROR", "detail": "unexpected validation failure", "path": "$"}}, 2)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

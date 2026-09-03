@@ -5724,6 +5724,24 @@
       "notes": "ARM parity receipt is pending; source presence is not evidence of parity."
     },
     {
+      "id": "command:omarchy-hw-apple-platform-admission",
+      "kind": "command",
+      "sources": [
+        {
+          "kind": "command",
+          "path": "bin/omarchy-hw-apple-platform-admission"
+        }
+      ],
+      "disposition": "blocked",
+      "evidence": {
+        "kind": "pending",
+        "reference": "platform/apple-silicon/evidence/command__omarchy-hw-apple-platform-admission.json"
+      },
+      "owner": "platform-team",
+      "queue_id": "P03-command-omarchy-hw-apple-platform-admission",
+      "notes": "ARM parity receipt is pending; source presence is not evidence of parity."
+    },
+    {
       "id": "command:omarchy-hw-asus-expertbook-b9406",
       "kind": "command",
       "sources": [

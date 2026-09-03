@@ -3489,6 +3489,17 @@
       "status": "planned"
     },
     {
+      "id": "P03-command-omarchy-hw-apple-platform-admission",
+      "owner": "platform-team",
+      "dependency": "ARM package/runtime behavior and a reviewed receipt",
+      "next_action": "Run the exact ARM probe for command:omarchy-hw-apple-platform-admission and save its receipt.",
+      "acceptance": {
+        "command": "python3 tools/apple-silicon/parity-census.py accept-entry --id command:omarchy-hw-apple-platform-admission --evidence platform/apple-silicon/evidence/command__omarchy-hw-apple-platform-admission.json",
+        "evidence": "platform/apple-silicon/evidence/command__omarchy-hw-apple-platform-admission.json"
+      },
+      "status": "planned"
+    },
+    {
       "id": "P03-command-omarchy-hw-asus-expertbook-b9406",
       "owner": "platform-team",
       "dependency": "ARM package/runtime behavior and a reviewed receipt",
