@@ -25,6 +25,14 @@ readonly limine_dependencies=(
   limine-snapper-sync
 )
 
+# These utilities remain in the checkout for P-07's retirement/hardening work,
+# but an Apple clean-install package must not ship the legacy conversion graph.
+readonly legacy_conversion_entrypoints=(
+  omarchy-mac-setup
+  omarchy-system-boot-to-esp
+  omarchy-system-btrfs-migrate
+)
+
 readonly packages=(
   omarchy-keyring
   ttf-jetbrains-mono-nerd-basic
@@ -90,6 +98,68 @@ strip_limine_dependencies() {
   done
 }
 
+stage_apple_source() {
+  local source_root="$1" staged_root="$2" allowed_root="${3:-}" entry source_bin staged_bin
+  local source_real allowed_real staged_parent staged_parent_real staged_real staged_name component cursor
+  local -a parent_components=()
+
+  [[ -n $allowed_root ]] || fail "Apple source staging requires a trusted build directory"
+  [[ -d "$allowed_root" && ! -L "$allowed_root" ]] ||
+    fail "Apple source staging build directory must be a real directory"
+  [[ -d "$source_root" && ! -L "$source_root" ]] ||
+    fail "Apple source root must be a real directory"
+  source_bin="$source_root/bin"
+  [[ -d "$source_bin" && ! -L "$source_bin" ]] ||
+    fail "Apple source bin must be a real directory"
+  source_real=$(cd -- "$source_root" && pwd -P) || fail "could not resolve Apple source root"
+  allowed_real=$(cd -- "$allowed_root" && pwd -P) || fail "could not resolve Apple build directory"
+  staged_parent="${staged_root%/*}"
+  staged_name="${staged_root##*/}"
+  [[ $staged_parent != "$staged_root" && -n $staged_name ]] ||
+    fail "Apple source staging destination must name a directory"
+  [[ -d "$staged_parent" && ! -L "$staged_parent" ]] ||
+    fail "Apple source staging parent must be a real directory"
+  case "$staged_parent/" in
+    "$allowed_root/"*) ;;
+    *) fail "Apple source staging destination is outside the trusted build directory" ;;
+  esac
+  IFS=/ read -r -a parent_components <<< "${staged_parent#"$allowed_root"}"
+  cursor="$allowed_root"
+  for component in "${parent_components[@]}"; do
+    [[ -n $component ]] || continue
+    cursor="$cursor/$component"
+    [[ ! -L "$cursor" ]] || fail "Apple source staging parent contains a symlink"
+  done
+  staged_parent_real=$(cd -- "$staged_parent" && pwd -P) || fail "could not resolve Apple staging parent"
+  staged_real="$staged_parent_real/$staged_name"
+  case "$staged_real/" in
+    "$allowed_real/"*) ;;
+    *) fail "Apple source staging destination escapes the trusted build directory" ;;
+  esac
+  case "$staged_real/" in
+    "$source_real/"*) fail "Apple source staging destination aliases the source" ;;
+  esac
+  [[ ! -e "$staged_root" && ! -L "$staged_root" ]] ||
+    fail "refusing to overwrite existing Apple source staging destination: $staged_root"
+  for entry in "${legacy_conversion_entrypoints[@]}"; do
+    [[ -f "$source_bin/$entry" && ! -L "$source_bin/$entry" ]] ||
+      fail "Apple source legacy entrypoint must be a regular non-symlink file: bin/$entry"
+  done
+  cp -a "$source_root" "$staged_root"
+  [[ -d "$staged_root" && ! -L "$staged_root" ]] ||
+    fail "Apple staged source root must be a real directory"
+  staged_bin="$staged_root/bin"
+  [[ -d "$staged_bin" && ! -L "$staged_bin" ]] ||
+    fail "Apple staged source bin must be a real directory"
+  for entry in "${legacy_conversion_entrypoints[@]}"; do
+    [[ -f "$staged_bin/$entry" && ! -L "$staged_bin/$entry" ]] ||
+      fail "Apple source is missing legacy entrypoint bin/$entry"
+    rm -f -- "$staged_bin/$entry"
+    [[ ! -e "$staged_bin/$entry" && ! -L "$staged_bin/$entry" ]] ||
+      fail "could not omit legacy entrypoint bin/$entry from staged source"
+  done
+}
+
 # makepkg runs with --nodeps because the runtime dependencies include packages
 # built here, so pacman cannot resolve them yet. That skips makedepends too,
 # leaving the build tools to be installed up front.
@@ -130,7 +200,7 @@ remove_old_packages() {
 
 build_package() {
   local package="$1" pkgbuild_source="$2" build_dir="$3"
-  local artifact
+  local artifact package_source="$checkout"
   local -a built=()
 
   log "Building $package"
@@ -139,6 +209,8 @@ build_package() {
 
   if [[ $package == "omarchy" ]]; then
     strip_limine_dependencies "$build_dir/$package/PKGBUILD"
+    package_source="$build_dir/omarchy-source"
+    stage_apple_source "$checkout" "$package_source" "$build_dir"
   fi
   if [[ $package == "omarchy" || $package == "omarchy-settings" ]]; then
     set_pkgrel "$build_dir/$package/PKGBUILD"
@@ -148,7 +220,7 @@ build_package() {
   # a rebuild does not re-fetch the 125 MB font archive.
   (
     cd "$build_dir/$package"
-    SRCDEST="$source_cache" OMARCHY_SRC="$checkout" \
+    SRCDEST="$source_cache" OMARCHY_SRC="$package_source" \
       makepkg --force --noconfirm --nodeps --skipinteg
   )
 

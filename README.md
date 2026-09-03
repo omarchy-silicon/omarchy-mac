@@ -2,8 +2,7 @@
 
 # Omarchy Mac
 
-Omarchy 4 on Apple Silicon, alongside macOS: Asahi Alarm + Omarchy, installed
-in one command, full-disk encryption included.
+Omarchy 4 on Apple Silicon, alongside macOS: the Omarchy Silicon integration is under active development.
 
 [![License](https://img.shields.io/github/license/omarchy-mac/omarchy-mac)](LICENSE) [![Stars](https://img.shields.io/github/stars/omarchy-mac/omarchy-mac?style=social)](https://github.com/omarchy-mac/omarchy-mac/stargazers)
 
@@ -30,8 +29,7 @@ curl https://asahi-alarm.org/installer-bootstrap.sh | sh
 ```
 
 Choose `Asahi Alarm Minimal (BTRFS)` and allocate at least 50 GB for Linux.
-The plain `Asahi Alarm Minimal` (ext4) works too — the setup below converts
-it — but the BTRFS image already has the right shape.
+The plain `Asahi Alarm Minimal` (ext4) is not covered by the disabled legacy conversion path; use the BTRFS image for the currently documented prerequisite.
 
 ### 2. Boot into Arch and get online
 
@@ -49,62 +47,15 @@ to return to the prompt.
 If `nmtui` shows an error right after activating the connection, reboot and try
 again.
 
-### 3. One command
+### 3. Native clean installer status
 
-Still as root:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/omarchy-mac/omarchy-mac/quattro/bin/omarchy-mac-setup | bash
-```
-
-There is nothing to prepare beyond the network: no pacman update, no locale
-setup, no user creation. The script installs what it needs, creates your user
-and sets up sudo itself. To read it before running it, or to pass options:
-
-```bash
-curl -LO https://raw.githubusercontent.com/omarchy-mac/omarchy-mac/quattro/bin/omarchy-mac-setup
-bash omarchy-mac-setup --no-encrypt
-```
-
-(`--repo <owner/repo>` installs from a fork the same way. `quattro` is the
-repository's default branch and the script installs from it by default; it
-checks the version it is about to install and stops rather than giving you
-Omarchy 3 by accident.)
-
-It asks whether to encrypt (yes by default), then for a hostname, username and
-password, then carries the machine the rest of the way on its own — moving
-`/boot` onto the EFI partition, encrypting the root, installing Omarchy —
-rebooting between steps and resuming itself each time on tty1.
-
-Expect about fifteen minutes, three reboots, and two questions along the way:
-
-- **A gum dialog offering to build packages with no known aarch64 build.** Say
-  no. `obs-studio` alone compiles for about three hours and then fails an
-  architecture check. It defaults to no.
-- **The disk passphrase**, chosen at the console on the boot that does the
-  encryption. That boot rewrites every block of the partition, printing
-  cryptsetup's own progress as it goes; on an M2 Max it runs at about 1 GiB/s.
-  It is safe to interrupt: the next boot resumes where it stopped.
-
-Encrypted machines log straight into the desktop afterwards: the passphrase at
-boot is the authentication, and a second password immediately after it protects
-nothing the first one did not.
-
-Other flags: `--no-encrypt` skips the encryption and the boot-layout move it
-needs, `--status` reports where a machine has got to, `--step <name>` re-runs
-one step, `--abort` stops the guided run without undoing anything, and
-`--keep-root-password` leaves root's password as Asahi Alarm shipped it instead
-of locking it once your user has sudo.
+The signed Omarchy Silicon native clean installer is not yet shipped. The former guided adapter and its legacy conversion path are deliberately disabled and fail closed; do not run old `omarchy-mac-setup`, boot-layout conversion, or filesystem conversion commands from copied or cached instructions. There is no supported clean-install command to download yet, and this repository makes no clean-install, encryption, compatibility, or release-readiness claim.
 
 ---
 
 ## By hand
 
-Every step the script drives can be run separately. The boot-layout move,
-btrfs conversion, snapper snapshots and encryption are covered in
-[docs/btrfs.md](docs/btrfs.md). Once a regular user with sudo exists —
-the minimal image ships without `git` or `sudo`, so as root first:
-`pacman -S --needed sudo git` — installing Omarchy itself is:
+The package and runtime setup can be inspected separately, but the native clean installer is not yet available. Once a regular user with sudo exists — the minimal image ships without `git` or `sudo`, so as root first: `pacman -S --needed sudo git` — the existing setup is:
 
 ```bash
 git clone https://github.com/omarchy-mac/omarchy-mac.git ~/.local/share/omarchy
@@ -118,12 +69,7 @@ Omarchy 4 line. `main` still carries Omarchy 3.x, and its `install.sh` installs
 Omarchy 3 without saying which generation it is putting on the machine — an
 easy hour to lose. `cat version` is how you check before committing to it.
 
-The install takes under ten minutes on a good connection — most of the default
-set comes prebuilt from the aarch64 package repo rather than being compiled
-here. A few packages have no ARM build at all and are reported at the end
-rather than failing the install; where building one would take hours and still
-fail, the installer asks before trying, and `OMARCHY_TRY_UNAVAILABLE=1 bash
-install.sh` forces the attempt.
+This setup path is not the native signed clean-install flow and should not be treated as a release or support claim. A few packages have no ARM build and the current package tooling reports those gaps separately.
 
 ---
 
@@ -146,10 +92,7 @@ Setup → Security → SSH.
 
 ### The machine boots to `grub rescue>`
 
-GRUB kept its modules and kernel on the root filesystem, and the root was
-encrypted underneath it. See [docs/btrfs.md](docs/btrfs.md) — `/boot` has to be
-the EFI partition before encrypting, which `omarchy-system-boot-to-esp`
-arranges and `omarchy-system-btrfs-migrate` refuses to proceed without.
+GRUB kept its modules and kernel on the root filesystem, and the legacy conversion path is disabled and quarantined pending P-07; do not attempt to repair a clean install with copied conversion commands. The native signed installer and its recovery contract are not yet shipped.
 
 ### Rolling back after a bad update
 
@@ -186,7 +129,7 @@ Consider supporting the project: [![Buy Me A Coffee](https://img.shields.io/badg
 ## More documentation
 
 - The Omarchy manual — [manual/](manual/)
-- Btrfs snapshots and disk encryption — [docs/btrfs.md](docs/btrfs.md)
+- Legacy btrfs reference (not part of clean install; P-07 unresolved) — [docs/btrfs.md](docs/btrfs.md)
 - Upgrading from 3.x to Quattro — [docs/upgrade-to-quattro.md](docs/upgrade-to-quattro.md)
 
 ---

@@ -1,5 +1,7 @@
 # Btrfs on Omarchy Mac
 
+> Legacy reference only. This document is not part of the native clean-install flow. Its standalone conversion utilities are retained for P-07 retirement and hardening work, remain unresolved, and must not be run as an install procedure.
+
 The x86 Omarchy Quattro ISO installs onto btrfs and gets snapshots, snapper
 retention, and `omarchy-system-factory-reset` for free.
 `omarchy-system-btrfs-migrate` gives an Asahi Alarm install the same root
