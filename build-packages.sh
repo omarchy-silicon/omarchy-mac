@@ -37,6 +37,7 @@ readonly packages=(
   omarchy-keyring
   ttf-jetbrains-mono-nerd-basic
   omarchy-settings
+  omarchy-themes-intros
   omarchy
 )
 
